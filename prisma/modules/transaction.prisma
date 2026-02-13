@@ -1,0 +1,33 @@
+model Transaction {
+  id String @id @default(cuid())
+
+  orderId String @unique @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  transactionId String        @map("transaction_id") @db.VarChar(191)
+  paymentMethod PaymentMethod @map("payment_method")
+  amount        Decimal       @db.Decimal(18, 4)
+  currency      String        @db.VarChar(10)
+
+  gatewayResponse Json? @map("gateway_response") @db.JsonB
+  refunds         Json? @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  createdBy String? @map("created_by")
+  updatedBy String? @map("updated_by")
+
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  @@index([transactionId])
+  @@index([paymentMethod])
+  @@index([deletedAt])
+  @@index([deletedBy])
+  @@index([createdAt])
+  @@index([createdBy])
+  @@index([updatedAt])
+  @@index([updatedBy])
+  @@map("transactions")
+}

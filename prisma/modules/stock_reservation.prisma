@@ -1,0 +1,35 @@
+enum ReservationStatus {
+  ACTIVE
+  CONVERTED
+  EXPIRED
+  CANCELED
+}
+
+model StockReservation {
+  id String @id @default(cuid())
+
+  productId        String  @map("product_id")
+  productVariantId String? @map("product_variant_id")
+
+  userId    String? @map("user_id")
+  sessionId String? @map("session_id")
+
+  qty    Int
+  status ReservationStatus @default(ACTIVE)
+
+  expiresAt   DateTime  @map("expires_at")
+  convertedAt DateTime? @map("converted_at")
+  releasedAt  DateTime? @map("released_at")
+  metadata    Json?     @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([productId])
+  @@index([productVariantId])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("stock_reservations")
+}

@@ -1,0 +1,11 @@
+{
+  "cSpell.words": ["autoincrement", "SUPERADMIN", "স্যামসা"],
+  "prisma.pinToPrisma6": true,
+  "spellright.language": ["en"],
+  "spellright.documentTypes": ["markdown", "latex", "plaintext", "prisma"],
+  "spellright.parserByClass": {
+    "prisma": {
+      "parser": "code"
+    }
+  }
+}

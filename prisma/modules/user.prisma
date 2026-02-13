@@ -1,0 +1,49 @@
+model User {
+  id String @id @default(cuid())
+
+  firstName String @map("first_name") @db.VarChar(191)
+  lastName  String @map("last_name") @db.VarChar(191)
+  email     String @unique @db.VarChar(191)
+  phone     String @unique @db.VarChar(50)
+  password  String @db.VarChar(255)
+
+  role       UserRole @default(CUSTOMER)
+  permission Json     @db.JsonB
+
+  isActive    Boolean   @default(false) @map("is_active")
+  isVerified  Boolean   @default(false) @map("is_verified")
+  activatedAt DateTime? @map("activated_at")
+  lastLoginAt DateTime? @map("last_login_at")
+  lastLoginIP String?   @map("last_login_Ip") @db.VarChar(45)
+
+  //! Relations
+  addresses Address[]
+  orders    Order[]
+  reviews   Review[]
+  wishlist  WishlistItem[]
+  files     File[]
+  carts     Cart[]
+  auditLogs AuditLog[]
+  sessions  Session[]
+
+  // !soft delete
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
+
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([isVerified])
+  @@index([deletedAt])
+  @@index([deletedBy])
+  @@index([createdAt])
+  @@index([createdBy])
+  @@index([updatedAt])
+  @@index([updatedBy])
+  @@map("users")
+}

@@ -1,0 +1,43 @@
+model Category {
+  id String @id @default(cuid())
+
+  parentId String?   @map("parent_id")
+  parent   Category? @relation("CategoryTree", fields: [parentId], references: [id])
+
+  children Category[] @relation("CategoryTree")
+
+  name        String  @db.VarChar(191)
+  slug        String  @unique @db.VarChar(191)
+  description String? @db.Text
+  image       String? @db.VarChar(191)
+  icon        String? @db.VarChar(191)
+
+  position Int @default(0)
+  depth    Int @default(0)
+
+  translations Json? @db.JsonB
+  seo          Json? @db.JsonB
+
+  products         ProductCategory[]
+  couponCategories CouponCategory[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  createdBy String? @map("created_by")
+  updatedBy String? @map("updated_by")
+
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  @@index([parentId])
+  @@index([slug])
+  @@index([deletedAt])
+  @@index([deletedBy])
+  @@index([createdAt])
+  @@index([createdBy])
+  @@index([updatedAt])
+  @@index([updatedBy])
+  @@index([depth])
+  @@map("categories")
+}

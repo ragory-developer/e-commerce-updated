@@ -1,0 +1,36 @@
+
+enum InventoryReason {
+  ORDER_PLACED       
+  ORDER_CANCELED     
+  ORDER_REFUNDED     
+  MANUAL_ADJUSTMENT  
+  RESTOCK            
+  DAMAGED            
+  RETURNED           
+  RESERVED           
+  RESERVATION_RELEASED 
+}
+
+model InventoryLog {
+  id String @id @default(cuid())
+
+  productId        String  @map("product_id")
+  productVariantId String? @map("product_variant_id")
+  sku              String? @db.VarChar(100)
+
+  reason   InventoryReason
+  quantity Int
+
+  stockBefore Int @map("stock_before")
+  stockAfter  Int @map("stock_after")
+
+  metadata Json? @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@index([productVariantId])
+  @@index([reason])
+  @@index([createdAt])
+  @@map("inventory_logs")
+}

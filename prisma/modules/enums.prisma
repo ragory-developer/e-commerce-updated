@@ -1,0 +1,115 @@
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  CUSTOMER
+}
+
+enum AttributeType {
+  TEXT // Simple text input
+  NUMBER // Numeric input
+  SELECT // Dropdown select
+  MULTI_SELECT // Multiple select options
+  COLOR_PICKER // Color picker
+  CHECKBOX // Checkbox
+  DATE_PICKER // Date picker
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  DECLINED
+  CANCELED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  ON_HOLD
+  SHIPPED
+  DELIVERED
+}
+
+enum PaymentMethod {
+  PAYPAL
+  STRIPE
+  PAYTM
+  RAZORPAY
+  INSTAMOJO
+  AUTHORIZENET
+  PAYSTACK
+  MERCADOPAGO
+  FLUTTERWAVE
+  IYZICO
+  PAYFAST
+  BKASH
+  NAGAD
+  SSLCOMMERZ
+  COD
+  BANK_TRANSFER
+  CHECK_PAYMENT
+}
+
+enum ShippingMethod {
+  FREE_SHIPPING
+  LOCAL_PICKUP
+  FLAT_RATE
+}
+
+enum SpecialPriceType {
+  FIXED
+  PERCENT
+}
+
+enum VariationType {
+  TEXT
+  COLOR
+  IMAGE
+}
+
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+enum TaxBasedOn {
+  BILLING_ADDRESS
+  SHIPPING_ADDRESS
+  STORE_ADDRESS
+}
+
+enum CouponDiscountType {
+  FIXED
+  PERCENT
+}
+
+enum FileStorage {
+  LOCAL
+  S3
+  CLOUDINARY
+  GCS //google cloud storage
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+}
+
+enum OptionType {
+  DROPDOWN
+  CHECKBOX
+  RADIO
+  MULTIPLE_SELECT
+  TEXT
+  TEXTAREA
+  DATE
+  TIME
+  DATE_TIME
+  FILE
+}
+
+enum OptionPriceType {
+  FIXED
+  PERCENT
+}
