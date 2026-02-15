@@ -2,8 +2,8 @@
 model Product {
   id String @id @default(cuid())
 
-  brandId    String? @map("brand_id")
-  brand      Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  brandId String? @map("brand_id")
+  brand   Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
 
   taxClassId String?   @map("tax_class_id")
   taxClass   TaxClass? @relation(fields: [taxClassId], references: [id], onDelete: SetNull)
@@ -31,9 +31,9 @@ model Product {
   dimensions Json?    @db.JsonB // { "length": 30.5, "width": 20.0, "height": 10.0, "unit": "cm" }
 
   // Flags
-  isVirtual Boolean @default(false) @map("is_virtual")
-  isActive  Boolean @default(true) @map("is_active")
-  viewed    Int     @default(0)
+
+  isActive Boolean @default(true) @map("is_active")
+  viewed   Int     @default(0)
 
   newFrom DateTime? @map("new_from")
   newTo   DateTime? @map("new_to")

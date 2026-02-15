@@ -66,6 +66,5 @@ model Order {
   @@index([createdAt])
   @@index([paidAt])
   @@index([deletedAt])
-  @@index([createdAt])
   @@map("orders")
 }

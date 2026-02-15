@@ -14,7 +14,7 @@ model User {
   isVerified  Boolean   @default(false) @map("is_verified")
   activatedAt DateTime? @map("activated_at")
   lastLoginAt DateTime? @map("last_login_at")
-  lastLoginIP String?   @map("last_login_Ip") @db.VarChar(45)
+  lastLoginIP String?   @map("last_login_ip") @db.VarChar(45)
 
   //! Relations
   addresses Address[]
@@ -35,7 +35,6 @@ model User {
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@index([email])
   @@index([role])
   @@index([isActive])
   @@index([isVerified])

@@ -17,7 +17,6 @@ const SOFT_DELETE_MODELS = new Set([
   'VariationValue',
   'Order',
   'Transaction',
-  'OrderDownload',
   'TaxClass',
   'TaxRate',
   'Coupon',

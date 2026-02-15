@@ -1,7 +1,7 @@
-model Attributes {
+model Attribute {
   id String @id @default(cuid())
 
-  attributeSetId String       @map("attribute_set_Id")
+  attributeSetId String       @map("attribute_set_id")
   attributeSet   AttributeSet @relation(fields: [attributeSetId], references: [id])
 
   name     String        @db.VarChar(191)
@@ -12,7 +12,7 @@ model Attributes {
   translations Json? @db.JsonB
 
   values            AttributeValue[]
-  productAttributes productAttribute[]
+  productAttributes ProductAttribute[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

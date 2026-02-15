@@ -21,13 +21,8 @@ model Variation {
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@index([uid])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("variations")
 }
 
