@@ -1,19 +1,15 @@
-model AttributeSet {
+model CurrencyRate {
   id String @id @default(cuid())
 
-  name String @db.VarChar(191)
-  slug String @unique @db.VarChar(191)
-
-  translations Json? @db.JsonB
-
-  attributes Attribute[]
+  currency String  @unique @db.VarChar(10) // ISO 4217: "USD", "BDT"
+  rate     Decimal @db.Decimal(18, 4)
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@index([slug])
+  @@index([currency])
   @@index([deletedAt])
-  @@map("attribute_sets")
+  @@map("currency_rates")
 }

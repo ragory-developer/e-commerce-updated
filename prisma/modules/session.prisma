@@ -5,7 +5,7 @@ model Session {
   user   User   @relation(fields: [userId], references: [id])
 
   token     String  @unique @db.VarChar(500)
-  ipAddress String  @map("Ip_address") @db.VarChar(45)
+  ipAddress String  @map("ip_address") @db.VarChar(45)
   userAgent String? @map("user_agent") @db.VarChar(500)
 
   deviceInfo Json? @map("device_info") @db.JsonB

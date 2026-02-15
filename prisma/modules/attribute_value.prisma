@@ -4,7 +4,7 @@ model AttributeValue {
   attributeId String
   attribute   Attribute @relation(fields: [attributeId], references: [id])
 
-  value    String
+  value    String @db.VarChar(191)
   position Int    @default(0)
 
   translations Json? @db.JsonB
@@ -22,10 +22,6 @@ model AttributeValue {
 
   @@index([attributeId])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
-  @@map("attribute_value")
+  @@map("attribute_values")
 }

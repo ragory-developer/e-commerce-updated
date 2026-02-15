@@ -26,12 +26,7 @@ model Address {
 
   @@index([userId])
   @@index([country])
-  @@index([isDefault])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("addresses")
 }

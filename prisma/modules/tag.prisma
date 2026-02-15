@@ -19,10 +19,6 @@ model Tag {
 
   @@index([slug])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("tags")
 }

@@ -6,9 +6,9 @@ model Option {
   isRequired Boolean    @default(false) @map("is_required")
   position   Int        @default(0)
 
-  translations   Json?            @db.JsonB
+  translations   Json?           @db.JsonB
   values         OptionValue[]
-  productOptions ProductOptions[]
+  productOptions ProductOption[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -20,11 +20,7 @@ model Option {
   deletedBy String?   @map("deleted_by")
 
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("options")
 }
 

@@ -2,8 +2,8 @@ model Brand {
   id String @id @default(cuid())
 
   name        String  @db.VarChar(191)
-  slug        String  @db.VarChar(191)
-  description String  @db.Text
+  slug        String  @unique @db.VarChar(191)
+  description String? @db.Text
   image       String? @db.VarChar(500)
 
   // i18n Translations JSON
@@ -29,7 +29,7 @@ model Brand {
   // }
 
   // ! SEO
-  seo Json @db.JsonB
+  seo Json? @db.JsonB
 
   product Product[]
 
@@ -44,10 +44,6 @@ model Brand {
 
   @@index([slug])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("brands")
 }

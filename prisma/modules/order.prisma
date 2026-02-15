@@ -36,7 +36,7 @@ model Order {
   notes Json? @db.JsonB
 
   locale    String  @db.VarChar(10)
-  ipAddress String? @map("Ip_address") @db.VarChar(45)
+  ipAddress String? @map("ip_address") @db.VarChar(45)
   userAgent String? @map("user_agent") @db.VarChar(500)
 
   paidAt      DateTime? @map("paid_at")
@@ -44,9 +44,11 @@ model Order {
   deliveredAt DateTime? @map("delivered_at")
   canceledAt  DateTime? @map("canceled_at")
 
-  products    OrderProduct[]
-  taxes       OrderTax[]
-  transaction Transaction?
+  products      OrderProduct[]
+  taxes         OrderTax[]
+  statusHistory OrderStatusHistory[]
+  packages      OrderPackage[]
+  transaction   Transaction?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -64,10 +66,6 @@ model Order {
   @@index([createdAt])
   @@index([paidAt])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("orders")
 }

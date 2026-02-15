@@ -18,10 +18,6 @@ model Cart {
   @@index([userId])
   @@index([sessionId])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("carts")
 }

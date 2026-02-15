@@ -11,7 +11,7 @@ model OrderProduct {
   productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id])
 
   productName String  @map("product_name") @db.VarChar(191)
-  productSku  String? @map("product_Sku") @db.VarChar(100)
+  productSku  String? @map("product_sku") @db.VarChar(100)
   productSlug String  @map("product_slug") @db.VarChar(191)
 
   productImage Json? @map("product_image") @db.JsonB

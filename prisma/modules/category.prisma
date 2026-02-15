@@ -33,11 +33,7 @@ model Category {
   @@index([parentId])
   @@index([slug])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@index([depth])
   @@map("categories")
 }

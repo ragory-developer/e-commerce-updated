@@ -31,10 +31,6 @@ model File {
   @@index([mime])
   @@index([disk])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("files")
 }

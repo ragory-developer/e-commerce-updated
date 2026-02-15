@@ -24,10 +24,6 @@ model Transaction {
   @@index([transactionId])
   @@index([paymentMethod])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("transactions")
 }

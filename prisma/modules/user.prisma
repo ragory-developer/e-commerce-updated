@@ -7,8 +7,8 @@ model User {
   phone     String @unique @db.VarChar(50)
   password  String @db.VarChar(255)
 
-  role       UserRole @default(CUSTOMER)
-  permission Json     @db.JsonB
+  role        UserRole @default(CUSTOMER)
+  permissions Json?    @db.JsonB
 
   isActive    Boolean   @default(false) @map("is_active")
   isVerified  Boolean   @default(false) @map("is_verified")
@@ -40,10 +40,6 @@ model User {
   @@index([isActive])
   @@index([isVerified])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("users")
 }

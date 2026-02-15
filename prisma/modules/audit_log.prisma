@@ -1,8 +1,8 @@
 model AuditLog {
   id String @id @default(cuid())
 
-  userId String? @map("user_id")
-  user   User    @relation(fields: [userId], references: [id])
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
 
   action     AuditAction
   entityType String      @map("entity_type") @db.VarChar(50)
@@ -10,7 +10,7 @@ model AuditLog {
 
   changes Json? @db.JsonB
 
-  ipAddress String? @map("Ip_address") @db.VarChar(45)
+  ipAddress String? @map("ip_address") @db.VarChar(45)
   userAgent String? @map("user_agent") @db.VarChar(500)
 
   createdAt DateTime @default(now()) @map("created_at")

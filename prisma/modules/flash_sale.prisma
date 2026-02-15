@@ -54,10 +54,6 @@ model FlashSaleProduct {
   @@index([productId])
   @@index([endDate])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("flash_sale_products")
 }
