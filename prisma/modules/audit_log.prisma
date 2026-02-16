@@ -1,8 +1,9 @@
+// ─── Audit Log (decoupled — works for Admin & Customer) ──────
 model AuditLog {
   id String @id @default(cuid())
 
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id])
+  actorType AuthUserType // ADMIN or CUSTOMER
+  actorId   String?      @map("actor_id")
 
   action     AuditAction
   entityType String      @map("entity_type") @db.VarChar(50)
@@ -15,7 +16,7 @@ model AuditLog {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@index([userId])
+  @@index([actorType, actorId])
   @@index([entityType, entityId])
   @@index([action])
   @@index([createdAt])

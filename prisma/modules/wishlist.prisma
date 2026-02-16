@@ -1,12 +1,12 @@
 model WishlistItem {
-  userId    String  @map("user_id")
-  user      User    @relation(fields: [userId], references: [id])
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id])
+  customerId String   @map("customer_id")
+  customer   Customer @relation(fields: [customerId], references: [id])
+  productId  String   @map("product_id")
+  product    Product  @relation(fields: [productId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@id([userId, productId])
+  @@id([customerId, productId])
   @@index([productId])
   @@map("wish_lists")
 }

@@ -1,8 +1,8 @@
 model Address {
   id String @id @default(cuid())
 
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String   @map("customer_id")
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   label        String? @db.VarChar(50)
   address      String  @db.VarChar(191)
@@ -15,7 +15,6 @@ model Address {
 
   isDefault Boolean @default(false) @map("is_default")
 
-  // !soft delete
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   createdBy String?  @map("created_by")
@@ -24,7 +23,7 @@ model Address {
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@index([userId])
+  @@index([customerId])
   @@index([country])
   @@index([deletedAt])
   @@index([createdAt])

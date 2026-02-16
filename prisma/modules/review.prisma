@@ -1,8 +1,8 @@
 model Review {
   id String @id @default(cuid())
 
-  reviewerId String? @map("reviewer_id")
-  reviewer   User?   @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewerId String?   @map("reviewer_id")
+  reviewer   Customer? @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
 
   productId String  @map("product_id")
   product   Product @relation(fields: [productId], references: [id])

@@ -1,57 +1,53 @@
-enum UserRole {
-  SUPER_ADMIN
+// ========== Auth & Identity ==========
+enum AdminRole {
+  SUPERADMIN
   ADMIN
   MANAGER
+}
+
+enum AdminPermission {
+  MANAGE_USERS
+  VIEW_USERS
+  MANAGE_PRODUCTS
+  VIEW_PRODUCTS
+  MANAGE_ORDERS
+  VIEW_ORDERS
+  MANAGE_PAYMENTS
+  VIEW_PAYMENTS
+  VIEW_REPORTS
+  EXPORT_DATA
+  MANAGE_SETTINGS
+  MANAGE_COUPONS
+  MANAGE_SHIPPING
+  MANAGE_DELIVERY
+}
+
+enum AuthUserType {
+  ADMIN
   CUSTOMER
 }
 
+enum OtpChannel {
+  EMAIL
+  SMS
+}
+
+enum OtpPurpose {
+  VERIFY_PHONE
+  VERIFY_EMAIL
+  RESET_PASSWORD
+  LOGIN_OTP
+}
+
+// ========== Product ==========
 enum AttributeType {
-  TEXT // Simple text input
-  NUMBER // Numeric input
-  SELECT // Dropdown select
-  MULTI_SELECT // Multiple select options
-  COLOR_PICKER // Color picker
-  CHECKBOX // Checkbox
-  DATE_PICKER // Date picker
-}
-
-enum OrderStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  DECLINED
-  CANCELED
-  REFUNDED
-  PARTIALLY_REFUNDED
-  ON_HOLD
-  SHIPPED
-  DELIVERED
-}
-
-enum PaymentMethod {
-  PAYPAL
-  STRIPE
-  PAYTM
-  RAZORPAY
-  INSTAMOJO
-  AUTHORIZENET
-  PAYSTACK
-  MERCADOPAGO
-  FLUTTERWAVE
-  IYZICO
-  PAYFAST
-  BKASH
-  NAGAD
-  SSLCOMMERZ
-  COD
-  BANK_TRANSFER
-  CHECK_PAYMENT
-}
-
-enum ShippingMethod {
-  FREE_SHIPPING
-  LOCAL_PICKUP
-  FLAT_RATE
+  TEXT
+  NUMBER
+  SELECT
+  MULTI_SELECT
+  COLOR_PICKER
+  CHECKBOX
+  DATE_PICKER
 }
 
 enum SpecialPriceType {
@@ -71,24 +67,58 @@ enum PublishStatus {
   SCHEDULED
 }
 
+// ========== Order & Payment ==========
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  DECLINED
+  CANCELED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  ON_HOLD
+  SHIPPED
+  DELIVERED
+}
+
+enum PaymentMethod {
+  BKASH
+  NAGAD
+  SSLCOMMERZ
+  COD
+  BANK_TRANSFER
+  STRIPE
+  PAYPAL
+}
+
+enum ShippingMethod {
+  FREE_SHIPPING
+  LOCAL_PICKUP
+  FLAT_RATE
+}
+
+// ========== Coupon ==========
+enum CouponDiscountType {
+  FIXED
+  PERCENT
+}
+
+// ========== Tax ==========
 enum TaxBasedOn {
   BILLING_ADDRESS
   SHIPPING_ADDRESS
   STORE_ADDRESS
 }
 
-enum CouponDiscountType {
-  FIXED
-  PERCENT
-}
-
+// ========== File ==========
 enum FileStorage {
   LOCAL
   S3
   CLOUDINARY
-  GCS //google cloud storage
+  GCS
 }
 
+// ========== Audit ==========
 enum AuditAction {
   CREATE
   UPDATE
@@ -96,6 +126,7 @@ enum AuditAction {
   RESTORE
 }
 
+// ========== Option ==========
 enum OptionType {
   DROPDOWN
   CHECKBOX

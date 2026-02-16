@@ -1,44 +1,52 @@
+// ─── Customer (Guest + Registered in ONE table) ──────────────
+// Flow: Guest browses → OTP verify phone → Guest row created (isGuest=true)
+//       → fills name/address during checkout → order linked to this ID
+//       → later creates account (adds email+password) → isGuest=false
+//       → SAME ID, no data migration, all orders preserved!
+
 model Customer {
   id String @id @default(cuid())
 
-  firstName String @map("first_name") @db.VarChar(191)
-  lastName  String @map("last_name") @db.VarChar(191)
-  email     String @unique @db.VarChar(191)
-  phone     String @unique @db.VarChar(50)
-  password  String? @db.VarChar(255)
+  // Basic Info
+  firstName String? @map("first_name") @db.VarChar(100)
+  lastName  String? @map("last_name") @db.VarChar(100)
 
-  role        UserRole @default(CUSTOMER)
-  permissions Json?    @db.JsonB
+  email         String? @unique @db.VarChar(255)
+  emailVerified Boolean @default(false) @map("email_verified")
 
-  isActive    Boolean   @default(false) @map("is_active")
-  isVerified  Boolean   @default(false) @map("is_verified")
-  activatedAt DateTime? @map("activated_at")
+  phone         String  @unique @db.VarChar(20)
+  phoneVerified Boolean @default(false) @map("phone_verified")
+
+  password String? @db.VarChar(255) // null for guest
+
+  avatar String?
+
+  // Account State
+  isGuest  Boolean @default(true) @map("is_guest")
+  isActive Boolean @default(true) @map("is_active")
+
+  // Login Info
   lastLoginAt DateTime? @map("last_login_at")
-  lastLoginIP String?   @map("last_login_ip") @db.VarChar(45)
+  lastLoginIp String?   @map("last_login_ip") @db.VarChar(45)
 
-  //! Relations
-  addresses Address[]
-  orders    Order[]
-  reviews   Review[]
-  wishlist  WishlistItem[]
-  files     File[]
-  carts     Cart[]
-  auditLogs AuditLog[]
-  sessions  Session[]
-
-  // !soft delete
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  createdBy String?  @map("created_by")
-  updatedBy String?  @map("updated_by")
-
+  // Soft Delete
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@index([role])
-  @@index([isActive])
-  @@index([isVerified])
-  @@index([deletedAt])
-  @@index([createdAt])
-  @@map("users")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tokens    AuthToken[]
+  addresses Address[]
+  orders    Order[]
+  carts     Cart[]
+  reviews   Review[]
+  wishlist  WishlistItem[]
+
+  @@index([phone])
+  @@index([email])
+  @@index([isGuest])
+  @@index([isActive, deletedAt])
+  @@map("customers")
 }

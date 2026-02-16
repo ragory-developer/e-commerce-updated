@@ -3,8 +3,8 @@ model Order {
 
   orderNumber Int @unique @default(autoincrement()) @map("order_number")
 
-  customerId String? @map("customer_id")
-  customer   User?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId String?   @map("customer_id")
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   customerEmail     String  @map("customer_email") @db.VarChar(191)
   customerPhone     String? @map("customer_phone") @db.VarChar(50)

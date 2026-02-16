@@ -1,8 +1,7 @@
 model File {
   id String @id @default(cuid())
 
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id])
+  uploadedBy String? @map("uploaded_by")
 
   filename  String      @db.VarChar(191)
   disk      FileStorage @default(LOCAL)
@@ -24,7 +23,7 @@ model File {
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@index([userId])
+  @@index([uploadedBy])
   @@index([filename])
   @@index([mime])
   @@index([disk])
