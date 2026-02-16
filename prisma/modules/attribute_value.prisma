@@ -1,7 +1,7 @@
 model AttributeValue {
   id String @id @default(cuid())
 
-  attributeId String
+  attributeId String    @map("attribute_id")
   attribute   Attribute @relation(fields: [attributeId], references: [id])
 
   value    String @db.VarChar(191)

@@ -17,11 +17,7 @@ model FlashSale {
   deletedBy String?   @map("deleted_by")
 
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("flash_sales")
 }
 

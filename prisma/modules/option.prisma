@@ -6,7 +6,7 @@ model Option {
   isRequired Boolean    @default(false) @map("is_required")
   position   Int        @default(0)
 
-  translations   Json?           @db.JsonB
+  translations   Json            @db.JsonB
   values         OptionValue[]
   productOptions ProductOption[]
 
@@ -50,11 +50,7 @@ model OptionValue {
 
   @@index([optionId])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([createdAt])
-  @@index([createdBy])
-  @@index([updatedAt])
-  @@index([updatedBy])
   @@map("option_values")
 }
 
