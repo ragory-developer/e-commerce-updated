@@ -12,7 +12,12 @@ model Admin {
   role        AdminRole         @default(ADMIN)
   permissions AdminPermission[] @default([])
 
-  tokens AuthToken[]
+  // login security
+  loginAttempts Int       @default(0) @map("login_attempts")
+  lockedUntil   DateTime? @map("locked_until")
+
+  tokens  AuthToken[]
+  devices Device[]    @relation("AdminDevices")
 
   isActive    Boolean   @default(true) @map("is_active")
   lastLoginAt DateTime? @map("last_login_at")

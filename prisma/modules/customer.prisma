@@ -21,10 +21,12 @@ model Customer {
 
   avatar String?
 
-  // Account State
-  isGuest  Boolean @default(true) @map("is_guest")
-  isActive Boolean @default(true) @map("is_active")
+  loginAttempts Int       @default(0) @map("login_attempts")
+  lockedUntil   DateTime? @map("locked_until")
 
+  // Account State
+  isGuest     Boolean   @default(true) @map("is_guest")
+  isActive    Boolean   @default(true) @map("is_active")
   // Login Info
   lastLoginAt DateTime? @map("last_login_at")
   lastLoginIp String?   @map("last_login_ip") @db.VarChar(45)
@@ -38,6 +40,7 @@ model Customer {
 
   // Relations
   tokens    AuthToken[]
+  devices   Device[]       @relation("CustomerDevices")
   addresses Address[]
   orders    Order[]
   carts     Cart[]

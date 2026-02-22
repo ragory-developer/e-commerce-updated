@@ -1,0 +1,21 @@
+model Device {
+  id String @id @default(cuid())
+
+  adminId String? @map("admin_id")
+  admin   Admin?  @relation("AdminDevices", fields: [adminId], references: [id], onDelete: Cascade)
+
+  customerId String?   @map("customer_id")
+  customer   Customer? @relation("CustomerDevices", fields: [customerId], references: [id], onDelete: Cascade)
+
+  userType AuthUserType @map("user_type")
+
+  deviceId String @map("device_id") @db.VarChar(191)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tokens AuthToken[]
+
+  @@unique([adminId, deviceId])
+  @@unique([customerId, deviceId])
+  @@map("devices")
+}

@@ -37,6 +37,7 @@ enum OtpPurpose {
   VERIFY_EMAIL
   RESET_PASSWORD
   LOGIN_OTP
+  REGISTER_ACCOUNT
 }
 
 // ========== Product ==========

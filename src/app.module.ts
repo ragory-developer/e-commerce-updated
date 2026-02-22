@@ -1,74 +1,48 @@
-/**
- * APP MODULE
- *
- * The root module of the application.
- * Imports all feature modules and configures global providers.
- */
+// ─── src/app.module.ts ───────────────────────────────────────
 
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
-// ─── IMPORT MISSING MODULES ────────────────────────────────
 import { PrismaModule } from './prisma/prisma.module';
 import { OtpModule } from './otp/otp.module';
+import { AuthModule } from './auth/auth.module';
 
-// ─── IMPORT MISSING CONTROLLERS & SERVICES ─────────────────
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
-// ─── IMPORT CONFIGURATION ───────────────────────────────────
 import configuration from './common/config/configuration';
 import { validationSchema } from './common/config/validation.schema';
 
-// ─── IMPORT FILTERS, INTERCEPTORS & GUARDS ──────────────────
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { UserTypeGuard } from './common/guards/user-type.guard';
 
 @Module({
   imports: [
-    // ================================
-    // CONFIGURATION
-    // ================================
+    // ─── Configuration ───────────────────────────────────────────
     ConfigModule.forRoot({
-      isGlobal: true, // Available everywhere without importing
+      isGlobal: true,
       load: [configuration],
-      validationSchema, // Validate .env on startup
-      validationOptions: {
-        abortEarly: true, // Stop on first error
-      },
+      validationSchema,
+      validationOptions: { abortEarly: true },
     }),
 
-    // ================================
-    // RATE LIMITING (Security)
-    // ================================
+    // ─── Rate Limiting ────────────────────────────────────────────
     ThrottlerModule.forRoot([
-      {
-        name: 'short',
-        ttl: 1000, // 1 second
-        limit: 3, // 3 requests per second
-      },
-      {
-        name: 'medium',
-        ttl: 10000, // 10 seconds
-        limit: 20, // 20 requests per 10 seconds
-      },
-      {
-        name: 'long',
-        ttl: 60000, // 1 minute
-        limit: 100, // 100 requests per minute
-      },
+      { name: 'short', ttl: 1000, limit: 5 },
+      { name: 'medium', ttl: 10000, limit: 20 },
+      { name: 'long', ttl: 60000, limit: 100 },
     ]),
 
-    // ================================
-    // CORE MODULES
-    // ================================
+    // ─── Core Modules ─────────────────────────────────────────────
     PrismaModule,
     OtpModule,
+    AuthModule,
   ],
 
   controllers: [AppController],
@@ -76,31 +50,24 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
   providers: [
     AppService,
 
-    // ================================
-    // GLOBAL EXCEPTION FILTER
-    // Catches all errors and formats them consistently
-    // ================================
+    // ─── Global Exception Filter ──────────────────────────────────
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,
     },
 
-    // ================================
-    // GLOBAL INTERCEPTOR
-    // Formats all successful responses consistently
-    // ================================
+    // ─── Global Response Transformer ─────────────────────────────
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
     },
 
-    // ================================
-    // GLOBAL GUARDS (Order matters!)
-    // 1. Rate Limiter - Prevent abuse
-    // 2. JWT Auth - Verify token
-    // 3. Roles - Check user role
-    // 4. Permissions - Check specific permissions
-    // ================================
+    // ─── Global Guards (order matters!) ──────────────────────────
+    // 1. Rate Limiter  — reject abuse first
+    // 2. JWT Auth      — validate token, populate req.user
+    // 3. UserType      — check ADMIN vs CUSTOMER
+    // 4. Roles         — check admin role
+    // 5. Permissions   — check specific permissions
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -108,6 +75,10 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: UserTypeGuard,
     },
     {
       provide: APP_GUARD,

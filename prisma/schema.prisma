@@ -12,6 +12,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
 // ========================================
 // MODULE:  ADDRESS.PRISMA
 // ========================================
@@ -48,6 +49,7 @@ model Address {
   @@map("addresses")
 }
 
+
 // ========================================
 // MODULE:  ADMIN.PRISMA
 // ========================================
@@ -66,7 +68,12 @@ model Admin {
   role        AdminRole         @default(ADMIN)
   permissions AdminPermission[] @default([])
 
-  tokens AuthToken[]
+  // login security
+  loginAttempts Int       @default(0) @map("login_attempts")
+  lockedUntil   DateTime? @map("locked_until")
+
+  tokens  AuthToken[]
+  devices Device[]    @relation("AdminDevices")
 
   isActive    Boolean   @default(true) @map("is_active")
   lastLoginAt DateTime? @map("last_login_at")
@@ -85,6 +92,7 @@ model Admin {
   @@index([deletedAt])
   @@map("admins")
 }
+
 
 // ========================================
 // MODULE:  API_KEY.PRISMA
@@ -144,6 +152,7 @@ model ApiKey {
   @@map("api_keys")
 }
 
+
 // ========================================
 // MODULE:  ATTRIBUTE_VALUE.PRISMA
 // ========================================
@@ -175,6 +184,7 @@ model AttributeValue {
   @@index([createdAt])
   @@map("attribute_values")
 }
+
 
 // ========================================
 // MODULE:  ATTRIBUTES.PRISMA
@@ -212,6 +222,7 @@ model Attribute {
   @@map("attributes")
 }
 
+
 // ========================================
 // MODULE:  ATTRIBUTES_SET.PRISMA
 // ========================================
@@ -235,6 +246,7 @@ model AttributeSet {
   @@index([deletedAt])
   @@map("attribute_sets")
 }
+
 
 // ========================================
 // MODULE:  AUDIT_LOG.PRISMA
@@ -265,42 +277,64 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+
 // ========================================
 // MODULE:  AUTH_TOKEN.PRISMA
 // ========================================
 
-// ─── Auth Token (shared between Admin & Customer) ────────────
-// Replaces the old Session model. Supports both user types.
+// ─── Auth Token ───────────────────────────────────────────────
+// Stores hashed refresh tokens only.
+// Access tokens are stateless JWTs — never stored.
+//
+// Refresh Token Rotation:
+//   - On each /auth/refresh call, old token is revoked and a new one is issued.
+//   - If a revoked token is presented again → possible replay attack → revoke ALL
+//     tokens for that device.
+//
+// Family Tracking:
+//   - tokenFamily links a chain of rotated tokens.
+//   - Detecting reuse of a revoked token in a family = compromise detected.
 
 model AuthToken {
   id String @id @default(cuid())
 
-  userType AuthUserType
+  userType AuthUserType @map("user_type")
 
-  // Only ONE of these will be set
+  // ─── Owner (one of these will be set) ────────────────────────
   adminId String? @map("admin_id")
   admin   Admin?  @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   customerId String?   @map("customer_id")
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  tokenHash String   @map("token_hash") @db.VarChar(255)
+  // ─── Device Link ─────────────────────────────────────────────
+  deviceId String? @map("device_id")
+  device   Device? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  // ─── Token Data ───────────────────────────────────────────────
+  // We store a SHA-256 hash of the refresh token, never the plain token.
+  tokenHash String @map("token_hash") @db.VarChar(255)
+
+  // Token family for rotation — all rotated tokens in one chain share this UUID.
+  // If we detect reuse of a revoked token from this family → revoke entire family.
+  tokenFamily String @map("token_family") @db.VarChar(191)
+
   expiresAt DateTime @map("expires_at")
 
+  // ─── Revocation ──────────────────────────────────────────────
   revoked       Boolean   @default(false)
   revokedAt     DateTime? @map("revoked_at")
   revokedReason String?   @map("revoked_reason") @db.VarChar(100)
-
-  deviceInfo String? @map("device_info") @db.VarChar(255)
-  ipAddress  String? @map("ip_address") @db.VarChar(45)
-  userAgent  String? @map("user_agent") @db.Text
+  // Reason values: "LOGOUT" | "ROTATION" | "ALL_DEVICES" | "SECURITY" | "EXPIRED"
 
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([tokenHash])
+  @@index([tokenFamily])
   @@index([userType])
   @@index([adminId])
   @@index([customerId])
+  @@index([deviceId])
   @@index([expiresAt])
   @@index([revoked])
   @@map("auth_tokens")
@@ -332,8 +366,10 @@ model VerificationOtp {
   @@index([target])
   @@index([channel, purpose])
   @@index([expiresAt])
+  @@index([verified])
   @@map("verification_otps")
 }
+
 
 // ========================================
 // MODULE:  BRAND.PRISMA
@@ -389,6 +425,7 @@ model Brand {
   @@map("brands")
 }
 
+
 // ========================================
 // MODULE:  CART.PRISMA
 // ========================================
@@ -416,6 +453,7 @@ model Cart {
   @@index([createdAt])
   @@map("carts")
 }
+
 
 // ========================================
 // MODULE:  CATEGORY.PRISMA
@@ -460,6 +498,7 @@ model Category {
   @@index([depth])
   @@map("categories")
 }
+
 
 // ========================================
 // MODULE:  COUPON.PRISMA
@@ -525,6 +564,7 @@ model CouponCategory {
   @@map("coupon_categories")
 }
 
+
 // ========================================
 // MODULE:  CURRENCY_RATE.PRISMA
 // ========================================
@@ -544,6 +584,7 @@ model CurrencyRate {
   @@index([deletedAt])
   @@map("currency_rates")
 }
+
 
 // ========================================
 // MODULE:  CUSTOMER.PRISMA
@@ -572,10 +613,12 @@ model Customer {
 
   avatar String?
 
-  // Account State
-  isGuest  Boolean @default(true) @map("is_guest")
-  isActive Boolean @default(true) @map("is_active")
+  loginAttempts Int       @default(0) @map("login_attempts")
+  lockedUntil   DateTime? @map("locked_until")
 
+  // Account State
+  isGuest     Boolean   @default(true) @map("is_guest")
+  isActive    Boolean   @default(true) @map("is_active")
   // Login Info
   lastLoginAt DateTime? @map("last_login_at")
   lastLoginIp String?   @map("last_login_ip") @db.VarChar(45)
@@ -589,6 +632,7 @@ model Customer {
 
   // Relations
   tokens    AuthToken[]
+  devices   Device[]       @relation("CustomerDevices")
   addresses Address[]
   orders    Order[]
   carts     Cart[]
@@ -601,6 +645,7 @@ model Customer {
   @@index([isActive, deletedAt])
   @@map("customers")
 }
+
 
 // ========================================
 // MODULE:  DELIVERY.PRISMA
@@ -713,6 +758,34 @@ model OrderPackage {
   @@map("order_packages")
 }
 
+
+// ========================================
+// MODULE:  DEVICE.PRISMA
+// ========================================
+
+model Device {
+  id String @id @default(cuid())
+
+  adminId String? @map("admin_id")
+  admin   Admin?  @relation("AdminDevices", fields: [adminId], references: [id], onDelete: Cascade)
+
+  customerId String?   @map("customer_id")
+  customer   Customer? @relation("CustomerDevices", fields: [customerId], references: [id], onDelete: Cascade)
+
+  userType AuthUserType @map("user_type")
+
+  deviceId String @map("device_id") @db.VarChar(191)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tokens AuthToken[]
+
+  @@unique([adminId, deviceId])
+  @@unique([customerId, deviceId])
+  @@map("devices")
+}
+
+
 // ========================================
 // MODULE:  ENUMS.PRISMA
 // ========================================
@@ -756,6 +829,7 @@ enum OtpPurpose {
   VERIFY_EMAIL
   RESET_PASSWORD
   LOGIN_OTP
+  REGISTER_ACCOUNT
 }
 
 // ========== Product ==========
@@ -864,6 +938,7 @@ enum OptionPriceType {
   PERCENT
 }
 
+
 // ========================================
 // MODULE:  FILE.PRISMA
 // ========================================
@@ -901,6 +976,7 @@ model File {
   @@index([createdAt])
   @@map("files")
 }
+
 
 // ========================================
 // MODULE:  FLASH_SALE.PRISMA
@@ -962,20 +1038,21 @@ model FlashSaleProduct {
   @@map("flash_sale_products")
 }
 
+
 // ========================================
 // MODULE:  INVENTORY_LOG.PRISMA
 // ========================================
 
 enum InventoryReason {
-  ORDER_PLACED
-  ORDER_CANCELED
-  ORDER_REFUNDED
-  MANUAL_ADJUSTMENT
-  RESTOCK
-  DAMAGED
-  RETURNED
-  RESERVED
-  RESERVATION_RELEASED
+  ORDER_PLACED       
+  ORDER_CANCELED     
+  ORDER_REFUNDED     
+  MANUAL_ADJUSTMENT  
+  RESTOCK            
+  DAMAGED            
+  RETURNED           
+  RESERVED           
+  RESERVATION_RELEASED 
 }
 
 model InventoryLog {
@@ -1001,6 +1078,7 @@ model InventoryLog {
   @@index([createdAt])
   @@map("inventory_logs")
 }
+
 
 // ========================================
 // MODULE:  NOTIFICATION.PRISMA
@@ -1041,6 +1119,7 @@ model Notification {
   @@index([createdAt])
   @@map("notifications")
 }
+
 
 // ========================================
 // MODULE:  OPTION.PRISMA
@@ -1112,6 +1191,7 @@ model ProductOption {
   @@index([optionId])
   @@map("product_options")
 }
+
 
 // ========================================
 // MODULE:  ORDER.PRISMA
@@ -1188,6 +1268,7 @@ model Order {
   @@map("orders")
 }
 
+
 // ========================================
 // MODULE:  ORDER_PRODUCT.PRISMA
 // ========================================
@@ -1221,6 +1302,7 @@ model OrderProduct {
   @@index([productId])
   @@map("order_products")
 }
+
 
 // ========================================
 // MODULE:  ORDER_PRODUCT_DETAILS.PRISMA
@@ -1285,6 +1367,7 @@ model OrderProductVariationValue {
   @@map("order_product_variation_values")
 }
 
+
 // ========================================
 // MODULE:  ORDER_STATUS_HISTORY.PRISMA
 // ========================================
@@ -1328,6 +1411,7 @@ model OrderStatusHistory {
   @@map("order_status_history")
 }
 
+
 // ========================================
 // MODULE:  PRICE_HISTORY.PRISMA
 // ========================================
@@ -1352,6 +1436,7 @@ model PriceHistory {
   @@index([createdAt])
   @@map("price_history")
 }
+
 
 // ========================================
 // MODULE:  PRODUCT.PRISMA
@@ -1484,6 +1569,7 @@ model ProductVariant {
   @@map("product_variants")
 }
 
+
 // ========================================
 // MODULE:  PRODUCT_ATTRIBUTE.PRISMA
 // ========================================
@@ -1515,6 +1601,7 @@ model ProductAttributeValue {
   @@index([attributeValueId])
   @@map("product_attribute_values")
 }
+
 
 // ========================================
 // MODULE:  PRODUCT_RELATIONS.PRISMA
@@ -1586,6 +1673,7 @@ model CrossSellProduct {
   @@index([crossSellProductId])
   @@map("cross_sell_products")
 }
+
 
 // ========================================
 // MODULE:  PROMOTION.PRISMA
@@ -1706,6 +1794,7 @@ model Promotion {
   @@map("promotions")
 }
 
+
 // ========================================
 // MODULE:  QUEUE_JOB.PRISMA
 // ========================================
@@ -1788,6 +1877,7 @@ model QueueJob {
   @@map("queue_jobs")
 }
 
+
 // ========================================
 // MODULE:  REFUND.PRISMA
 // ========================================
@@ -1846,6 +1936,7 @@ model Refund {
   @@map("refunds")
 }
 
+
 // ========================================
 // MODULE:  REVIEW.PRISMA
 // ========================================
@@ -1879,6 +1970,7 @@ model Review {
   @@map("reviews")
 }
 
+
 // ========================================
 // MODULE:  SEARCH_TERM.PRISMA
 // ========================================
@@ -1899,6 +1991,7 @@ model SearchTerm {
   @@index([deletedAt])
   @@map("search_terms")
 }
+
 
 // ========================================
 // MODULE:  SETTING.PRISMA
@@ -1928,6 +2021,7 @@ model Setting {
   @@index([deletedAt])
   @@map("settings")
 }
+
 
 // ========================================
 // MODULE:  SHIPPING.PRISMA
@@ -1986,6 +2080,7 @@ model ShippingRate {
   @@map("shipping_rates")
 }
 
+
 // ========================================
 // MODULE:  STOCK_RESERVATION.PRISMA
 // ========================================
@@ -2026,6 +2121,7 @@ model StockReservation {
   @@map("stock_reservations")
 }
 
+
 // ========================================
 // MODULE:  TAG.PRISMA
 // ========================================
@@ -2054,6 +2150,7 @@ model Tag {
   @@index([createdAt])
   @@map("tags")
 }
+
 
 // ========================================
 // MODULE:  TAX.PRISMA
@@ -2122,6 +2219,7 @@ model OrderTax {
   @@map("order_taxes")
 }
 
+
 // ========================================
 // MODULE:  TRANSACTION.PRISMA
 // ========================================
@@ -2155,6 +2253,7 @@ model Transaction {
   @@index([createdAt])
   @@map("transactions")
 }
+
 
 // ========================================
 // MODULE:  VARIATION.PRISMA
@@ -2230,6 +2329,7 @@ model ProductVariation {
   @@index([variationId])
   @@map("product_variations")
 }
+
 
 // ========================================
 // MODULE:  WISHLIST.PRISMA
