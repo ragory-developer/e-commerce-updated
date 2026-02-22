@@ -9,6 +9,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { OtpModule } from './otp/otp.module';
 
 @Module({
   imports: [
@@ -49,12 +50,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     // CORE MODULES
     // ================================
     PrismaModule,
-    AuthModule,
-    CategoryModule,
-    AttributeModule,
-    BrandModule,
-    TagModule,
-    UploadModule,
+    OtpModule,
   ],
 
   controllers: [AppController],
