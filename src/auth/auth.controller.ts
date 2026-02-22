@@ -12,12 +12,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import type { Request } from 'express';
 
 import { AdminAuthService } from './admin-auth.service';
@@ -42,7 +37,7 @@ import {
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { UserType } from '../common/decorators/user-type.decorator';
+import { PrismaService } from '../prisma/prisma.service';
 import type { RequestUser } from './auth.types';
 import { AdminRole } from '@prisma/client';
 
@@ -50,8 +45,8 @@ import { AdminRole } from '@prisma/client';
 function extractDeviceInfo(req: Request, body: any) {
   return {
     clientDeviceId: body.deviceId ?? generateFallbackDeviceId(req),
-    deviceName: body.deviceName,
-    deviceType: body.deviceType,
+    deviceName: body.deviceName as string | undefined,
+    deviceType: body.deviceType as string | undefined,
     ipAddress:
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ??
       req.socket.remoteAddress ??
@@ -61,15 +56,13 @@ function extractDeviceInfo(req: Request, body: any) {
 }
 
 function generateFallbackDeviceId(req: Request): string {
-  // Deterministic fallback based on userAgent + IP
   const ua = req.headers['user-agent'] ?? '';
   const ip = req.socket.remoteAddress ?? '';
   const raw = `${ua}:${ip}`;
-  // Simple hash (not cryptographic, just for stable ID)
   let hash = 5381;
   for (let i = 0; i < raw.length; i++) {
     hash = (hash << 5) + hash + raw.charCodeAt(i);
-    hash = hash & hash;
+    hash &= 0xffffffff; // Ensure 32-bit integer
   }
   return `fallback-${Math.abs(hash).toString(16)}`;
 }
@@ -83,6 +76,7 @@ export class AuthController {
     private readonly adminAuthService: AdminAuthService,
     private readonly customerAuthService: CustomerAuthService,
     private readonly tokenService: TokenService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ===========================================================
@@ -366,7 +360,6 @@ export class AuthController {
   })
   async logout(@Body() dto: LogoutDto, @CurrentUser() user: RequestUser) {
     await this.tokenService.revokeToken(dto.refreshToken);
-    // Also deactivate the current device
     await this.tokenService.revokeDeviceTokens(user.deviceId, 'LOGOUT');
     return { message: 'Logged out successfully', data: null };
   }
@@ -412,7 +405,7 @@ export class AuthController {
     const ownerWhere =
       user.type === 'ADMIN' ? { adminId: user.id } : { customerId: user.id };
 
-    const devices = await this.tokenService['prisma'].device.findMany({
+    const devices = await this.prisma.device.findMany({
       where: { ...ownerWhere, isActive: true },
       select: {
         id: true,
@@ -441,7 +434,7 @@ export class AuthController {
       user.type === 'ADMIN' ? { adminId: user.id } : { customerId: user.id };
 
     // Verify the device belongs to the caller
-    const device = await this.tokenService['prisma'].device.findFirst({
+    const device = await this.prisma.device.findFirst({
       where: { id: deviceDbId, ...ownerWhere },
     });
 

@@ -38,7 +38,7 @@ export class EmailOtpService {
     this.transporter = nodemailer.createTransport({
       host: this.configService.get<string>('EMAIL_HOST'),
       port: this.configService.get<number>('EMAIL_PORT'),
-      secure: this.configService.get<boolean>('EMAIL_SECURE') || false,
+      secure: this.configService.get<boolean>('EMAIL_SECURE') ?? false,
       auth: {
         user: this.configService.get<string>('EMAIL_USER'),
         pass: this.configService.get<string>('EMAIL_PASSWORD'),
@@ -48,13 +48,14 @@ export class EmailOtpService {
 
   // ─── Get Email Subject by Purpose ────────────────────────────
   private getSubject(purpose: OtpPurpose): string {
-    const subjects = {
+    const subjects: Record<OtpPurpose, string> = {
       VERIFY_EMAIL: 'Verify Your Email Address',
       VERIFY_PHONE: 'Phone Verification Code',
       RESET_PASSWORD: 'Password Reset Code',
       LOGIN_OTP: 'Your Login Code',
+      REGISTER_ACCOUNT: 'Complete Your Registration',
     };
-    return subjects[purpose] || 'Verification Code';
+    return subjects[purpose] ?? 'Verification Code';
   }
 
   // ─── Generate HTML Email Template ────────────────────────────
@@ -64,26 +65,31 @@ export class EmailOtpService {
     recipientName: string,
     expiryMinutes: number,
   ): string {
-    const purposeTexts = {
-      VERIFY_EMAIL: {
-        title: 'Verify Your Email',
-        action: 'verify your email address',
-      },
-      VERIFY_PHONE: {
-        title: 'Phone Verification',
-        action: 'verify your phone number',
-      },
-      RESET_PASSWORD: {
-        title: 'Reset Your Password',
-        action: 'reset your password',
-      },
-      LOGIN_OTP: {
-        title: 'Login Verification',
-        action: 'log in to your account',
-      },
-    };
+    const purposeTexts: Record<OtpPurpose, { title: string; action: string }> =
+      {
+        VERIFY_EMAIL: {
+          title: 'Verify Your Email',
+          action: 'verify your email address',
+        },
+        VERIFY_PHONE: {
+          title: 'Phone Verification',
+          action: 'verify your phone number',
+        },
+        RESET_PASSWORD: {
+          title: 'Reset Your Password',
+          action: 'reset your password',
+        },
+        LOGIN_OTP: {
+          title: 'Login Verification',
+          action: 'log in to your account',
+        },
+        REGISTER_ACCOUNT: {
+          title: 'Complete Registration',
+          action: 'complete your registration',
+        },
+      };
 
-    const { title, action } = purposeTexts[purpose] || {
+    const { title, action } = purposeTexts[purpose] ?? {
       title: 'Verification',
       action: 'complete verification',
     };
@@ -166,14 +172,15 @@ export class EmailOtpService {
     recipientName: string,
     expiryMinutes: number,
   ): string {
-    const purposeTexts = {
+    const purposeTexts: Record<OtpPurpose, string> = {
       VERIFY_EMAIL: 'verify your email address',
       VERIFY_PHONE: 'verify your phone number',
       RESET_PASSWORD: 'reset your password',
       LOGIN_OTP: 'log in to your account',
+      REGISTER_ACCOUNT: 'complete your registration',
     };
 
-    const action = purposeTexts[purpose] || 'complete verification';
+    const action = purposeTexts[purpose] ?? 'complete verification';
 
     return `
 Hi ${recipientName || 'there'},
@@ -230,9 +237,8 @@ If you didn't request this code, please ignore this email.
     await this.otpService.storeOtp('EMAIL', options, codeHash);
 
     // Send email
-    const expiryMinutes = Math.floor(
-      OTP_CONFIG.EXPIRY_SECONDS[options.purpose] / 60,
-    );
+    const expirySeconds = OTP_CONFIG.EXPIRY_SECONDS[options.purpose] ?? 300;
+    const expiryMinutes = Math.floor(expirySeconds / 60);
 
     try {
       await this.transporter.sendMail({
@@ -242,13 +248,13 @@ If you didn't request this code, please ignore this email.
         text: this.generateEmailText(
           code,
           options.purpose,
-          options.recipientName || '',
+          options.recipientName ?? '',
           expiryMinutes,
         ),
         html: this.generateEmailHtml(
           code,
           options.purpose,
-          options.recipientName || '',
+          options.recipientName ?? '',
           expiryMinutes,
         ),
       });
@@ -260,7 +266,7 @@ If you didn't request this code, please ignore this email.
       return {
         success: true,
         maskedTarget: this.otpService.maskTarget(options.target, 'EMAIL'),
-        expiresInSeconds: OTP_CONFIG.EXPIRY_SECONDS[options.purpose],
+        expiresInSeconds: expirySeconds,
         resendAfterSeconds: OTP_CONFIG.RESEND_COOLDOWN_SECONDS,
       };
     } catch (error) {

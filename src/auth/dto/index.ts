@@ -1,6 +1,4 @@
 // ─── src/auth/dto/index.ts ────────────────────────────────────
-// All class properties use `!` (definite assignment assertion) to satisfy
-// TypeScript strict mode. class-validator decorators handle runtime validation.
 
 import {
   IsEmail,
@@ -319,7 +317,7 @@ export class ResetPasswordDto {
   @IsString()
   @MinLength(8)
   @MaxLength(72)
-  newPassword!: string; // ← Fixed: was missing `!` → "Property has no initializer" error
+  newPassword!: string;
 }
 
 // ─────────────────────────────────────────────────────────────

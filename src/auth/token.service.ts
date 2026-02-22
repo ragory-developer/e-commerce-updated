@@ -222,6 +222,10 @@ export class TokenService {
       tokenRecord;
     const ownerId = (adminId ?? customerId)!;
 
+    if (!deviceId) {
+      throw new UnauthorizedException(AUTH_ERROR.TOKEN_INVALID);
+    }
+
     // ─── Verify owner is still active ────────────────────────────
     if (userType === 'ADMIN') {
       const admin = await this.prisma.admin.findFirst({
@@ -244,7 +248,7 @@ export class TokenService {
       const tokens = await this.issueTokenPair(
         userType,
         ownerId,
-        deviceId!,
+        deviceId,
         admin.role,
         admin.permissions,
         tokenFamily,
@@ -273,7 +277,7 @@ export class TokenService {
       const tokens = await this.issueTokenPair(
         userType,
         ownerId,
-        deviceId!,
+        deviceId,
         undefined,
         undefined,
         tokenFamily,

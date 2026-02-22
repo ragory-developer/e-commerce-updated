@@ -32,7 +32,7 @@ export class PhoneOtpService {
   // ─── Format Phone Number (add country code) ──────────────────
   private formatPhoneNumber(phone: string): string {
     // Remove any spaces, dashes, or special characters
-    const cleaned = phone.replace(/[\s\-()]/g, '');
+    const cleaned = phone.replace(/[\s\-()+]/g, '');
 
     // If starts with 0, replace with 880 (Bangladesh)
     if (cleaned.startsWith('0')) {
@@ -49,16 +49,18 @@ export class PhoneOtpService {
 
   // ─── Generate SMS Message ────────────────────────────────────
   private generateSmsMessage(code: string, purpose: OtpPurpose): string {
-    const expiryMinutes = Math.floor(OTP_CONFIG.EXPIRY_SECONDS[purpose] / 60);
+    const expirySeconds = OTP_CONFIG.EXPIRY_SECONDS[purpose] ?? 300;
+    const expiryMinutes = Math.floor(expirySeconds / 60);
 
-    const purposeTexts = {
+    const purposeTexts: Record<OtpPurpose, string> = {
       VERIFY_PHONE: 'Phone verification',
       VERIFY_EMAIL: 'Email verification',
       RESET_PASSWORD: 'Password reset',
       LOGIN_OTP: 'Login',
+      REGISTER_ACCOUNT: 'Registration',
     };
 
-    const purposeText = purposeTexts[purpose] || 'Verification';
+    const purposeText = purposeTexts[purpose] ?? 'Verification';
 
     return `${purposeText} code is: ${code}. Valid for ${expiryMinutes} mins. Do not share.`;
   }
@@ -70,6 +72,13 @@ export class PhoneOtpService {
     const baseUrl = this.configService.get<string>('SMS_BASE_URL');
 
     if (!apiKey || !senderId || !baseUrl) {
+      // In development, log instead of throwing so the app still works
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.warn(
+          `[DEV] SMS not configured — would send to ${phone}: ${message}`,
+        );
+        return;
+      }
       throw new InternalServerErrorException('SMS configuration is incomplete');
     }
 
@@ -156,10 +165,12 @@ export class PhoneOtpService {
         `SMS OTP sent to ${this.otpService.maskTarget(options.target, 'SMS')}`,
       );
 
+      const expirySeconds = OTP_CONFIG.EXPIRY_SECONDS[options.purpose] ?? 300;
+
       return {
         success: true,
         maskedTarget: this.otpService.maskTarget(options.target, 'SMS'),
-        expiresInSeconds: OTP_CONFIG.EXPIRY_SECONDS[options.purpose],
+        expiresInSeconds: expirySeconds,
         resendAfterSeconds: OTP_CONFIG.RESEND_COOLDOWN_SECONDS,
       };
     } catch (error) {
