@@ -9,7 +9,25 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+
+// ─── IMPORT MISSING MODULES ────────────────────────────────
+import { PrismaModule } from './prisma/prisma.module';
 import { OtpModule } from './otp/otp.module';
+
+// ─── IMPORT MISSING CONTROLLERS & SERVICES ─────────────────
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+// ─── IMPORT CONFIGURATION ───────────────────────────────────
+import configuration from './common/config/configuration';
+import { validationSchema } from './common/config/validation.schema';
+
+// ─── IMPORT FILTERS, INTERCEPTORS & GUARDS ──────────────────
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { PermissionsGuard } from './common/guards/permissions.guard';
 
 @Module({
   imports: [
@@ -19,7 +37,7 @@ import { OtpModule } from './otp/otp.module';
     ConfigModule.forRoot({
       isGlobal: true, // Available everywhere without importing
       load: [configuration],
-      validationSchema, // Validate . env on startup
+      validationSchema, // Validate .env on startup
       validationOptions: {
         abortEarly: true, // Stop on first error
       },

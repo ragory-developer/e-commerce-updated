@@ -1,11 +1,11 @@
-import Joi from 'joi';
+import * as Joi from 'joi';
 
 export const validationSchema = Joi.object({
-  //  required
+  // ─── Required ─────────────────────────────────────────────
   DATABASE_URL: Joi.string().uri().required(),
   JWT_SECRET: Joi.string().min(16).required(),
 
-  // ─── Optional with defaults ───────────
+  // ─── Optional with defaults ───────────────────────────────
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
@@ -24,4 +24,18 @@ export const validationSchema = Joi.object({
   SUPER_ADMIN_PASSWORD: Joi.string().min(8).required(),
   SUPER_ADMIN_FIRST_NAME: Joi.string().default('Super'),
   SUPER_ADMIN_LAST_NAME: Joi.string().default('Admin'),
+
+  // ─── Email OTP Configuration ──────────────────────────────
+  EMAIL_HOST: Joi.string().optional(),
+  EMAIL_PORT: Joi.number().optional(),
+  EMAIL_SECURE: Joi.boolean().optional(),
+  EMAIL_USER: Joi.string().optional(),
+  EMAIL_PASSWORD: Joi.string().optional(),
+  EMAIL_FROM_NAME: Joi.string().default('Your Store'),
+  EMAIL_FROM_ADDRESS: Joi.string().email().optional(),
+
+  // ─── SMS OTP Configuration ────────────────────────────────
+  SMS_API_KEY: Joi.string().optional(),
+  SMS_SENDER_ID: Joi.string().optional(),
+  SMS_BASE_URL: Joi.string().uri().optional(),
 });
