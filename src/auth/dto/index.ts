@@ -1,4 +1,6 @@
 // ─── src/auth/dto/index.ts ────────────────────────────────────
+// All class properties use `!` (definite assignment assertion) to satisfy
+// TypeScript strict mode. class-validator decorators handle runtime validation.
 
 import {
   IsEmail,
@@ -7,9 +9,9 @@ import {
   MinLength,
   MaxLength,
   IsEnum,
+  IsArray,
   IsOptional,
   Matches,
-  IsUUID,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AdminRole, AdminPermission } from '@prisma/client';
@@ -23,13 +25,13 @@ export class AdminLoginDto {
   @ApiProperty({ example: 'admin@example.com' })
   @IsEmail()
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'SecureP@ss123' })
   @IsString()
   @IsNotEmpty()
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-...' })
   @IsOptional()
@@ -59,19 +61,19 @@ export class CreateAdminDto {
   @IsNotEmpty()
   @MaxLength(100)
   @Transform(({ value }) => value?.trim())
-  firstName: string;
+  firstName!: string;
 
   @ApiProperty({ example: 'Doe' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
   @Transform(({ value }) => value?.trim())
-  lastName: string;
+  lastName!: string;
 
   @ApiProperty({ example: 'john@example.com' })
   @IsEmail()
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 
   @ApiPropertyOptional({ example: '+8801700000000' })
   @IsOptional()
@@ -83,7 +85,7 @@ export class CreateAdminDto {
   @IsString()
   @MinLength(8)
   @MaxLength(72)
-  password: string;
+  password!: string;
 
   @ApiPropertyOptional({ enum: AdminRole, default: AdminRole.ADMIN })
   @IsOptional()
@@ -92,20 +94,22 @@ export class CreateAdminDto {
 
   @ApiPropertyOptional({ enum: AdminPermission, isArray: true, default: [] })
   @IsOptional()
+  @IsArray()
   @IsEnum(AdminPermission, { each: true })
   permissions?: AdminPermission[];
 }
 
 export class UpdateAdminPermissionsDto {
   @ApiProperty({ enum: AdminPermission, isArray: true })
+  @IsArray()
   @IsEnum(AdminPermission, { each: true })
-  permissions: AdminPermission[];
+  permissions!: AdminPermission[];
 }
 
 export class UpdateAdminRoleDto {
   @ApiProperty({ enum: AdminRole })
   @IsEnum(AdminRole)
-  role: AdminRole;
+  role!: AdminRole;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -121,7 +125,7 @@ export class CustomerRequestOtpDto {
   @IsNotEmpty()
   @MaxLength(20)
   @Transform(({ value }) => value?.trim())
-  phone: string;
+  phone!: string;
 }
 
 export class CustomerVerifyOtpDto {
@@ -130,13 +134,13 @@ export class CustomerVerifyOtpDto {
   @IsNotEmpty()
   @MaxLength(20)
   @Transform(({ value }) => value?.trim())
-  phone: string;
+  phone!: string;
 
   @ApiProperty({ example: '123456', description: '6-digit OTP code' })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{6}$/, { message: 'OTP must be 6 digits' })
-  code: string;
+  @Matches(/^\d{6}$/, { message: 'OTP must be exactly 6 digits' })
+  code!: string;
 
   @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-...' })
   @IsOptional()
@@ -166,27 +170,27 @@ export class CustomerRegisterDto {
   @IsNotEmpty()
   @MaxLength(20)
   @Transform(({ value }) => value?.trim())
-  phone: string;
+  phone!: string;
 
   @ApiProperty({ example: '123456', description: 'OTP code from SMS' })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{6}$/, { message: 'OTP must be 6 digits' })
-  otpCode: string;
+  @Matches(/^\d{6}$/, { message: 'OTP must be exactly 6 digits' })
+  otpCode!: string;
 
   @ApiProperty({ example: 'John' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
   @Transform(({ value }) => value?.trim())
-  firstName: string;
+  firstName!: string;
 
   @ApiProperty({ example: 'Doe' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
   @Transform(({ value }) => value?.trim())
-  lastName: string;
+  lastName!: string;
 
   @ApiPropertyOptional({ example: 'john@example.com' })
   @IsOptional()
@@ -198,7 +202,7 @@ export class CustomerRegisterDto {
   @IsString()
   @MinLength(8)
   @MaxLength(72)
-  password: string;
+  password!: string;
 
   @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-...' })
   @IsOptional()
@@ -228,13 +232,13 @@ export class CustomerPasswordLoginDto {
   @IsNotEmpty()
   @MaxLength(20)
   @Transform(({ value }) => value?.trim())
-  phone: string;
+  phone!: string;
 
   @ApiProperty({ example: 'SecureP@ss123' })
   @IsString()
   @IsNotEmpty()
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -261,13 +265,13 @@ export class CustomerOtpLoginDto {
   @IsNotEmpty()
   @MaxLength(20)
   @Transform(({ value }) => value?.trim())
-  phone: string;
+  phone!: string;
 
   @ApiProperty({ example: '123456' })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{6}$/, { message: 'OTP must be 6 digits' })
-  code: string;
+  @Matches(/^\d{6}$/, { message: 'OTP must be exactly 6 digits' })
+  code!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -294,7 +298,7 @@ export class ForgotPasswordDto {
   @IsNotEmpty()
   @MaxLength(20)
   @Transform(({ value }) => value?.trim())
-  phone: string;
+  phone!: string;
 }
 
 export class ResetPasswordDto {
@@ -303,19 +307,19 @@ export class ResetPasswordDto {
   @IsNotEmpty()
   @MaxLength(20)
   @Transform(({ value }) => value?.trim())
-  phone: string;
+  phone!: string;
 
   @ApiProperty({ example: '123456' })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{6}$/, { message: 'OTP must be 6 digits' })
-  code: string;
+  @Matches(/^\d{6}$/, { message: 'OTP must be exactly 6 digits' })
+  code!: string;
 
   @ApiProperty({ example: 'NewSecureP@ss123', minLength: 8 })
   @IsString()
   @MinLength(8)
   @MaxLength(72)
-  newPassword: string;
+  newPassword!: string; // ← Fixed: was missing `!` → "Property has no initializer" error
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -326,7 +330,7 @@ export class RefreshTokenDto {
   @ApiProperty({ description: 'The refresh token received during login' })
   @IsString()
   @IsNotEmpty()
-  refreshToken: string;
+  refreshToken!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -339,18 +343,18 @@ export class LogoutDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  refreshToken: string;
+  refreshToken!: string;
 }
 
 export class ChangePasswordDto {
   @ApiProperty({ example: 'OldP@ss123' })
   @IsString()
   @IsNotEmpty()
-  currentPassword: string;
+  currentPassword!: string;
 
   @ApiProperty({ example: 'NewP@ss123', minLength: 8 })
   @IsString()
   @MinLength(8)
   @MaxLength(72)
-  newPassword: string;
+  newPassword!: string;
 }

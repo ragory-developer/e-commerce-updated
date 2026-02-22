@@ -282,50 +282,28 @@ model AuditLog {
 // MODULE:  AUTH_TOKEN.PRISMA
 // ========================================
 
-// ─── Auth Token ───────────────────────────────────────────────
-// Stores hashed refresh tokens only.
-// Access tokens are stateless JWTs — never stored.
-//
-// Refresh Token Rotation:
-//   - On each /auth/refresh call, old token is revoked and a new one is issued.
-//   - If a revoked token is presented again → possible replay attack → revoke ALL
-//     tokens for that device.
-//
-// Family Tracking:
-//   - tokenFamily links a chain of rotated tokens.
-//   - Detecting reuse of a revoked token in a family = compromise detected.
-
 model AuthToken {
   id String @id @default(cuid())
 
   userType AuthUserType @map("user_type")
 
-  // ─── Owner (one of these will be set) ────────────────────────
   adminId String? @map("admin_id")
   admin   Admin?  @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   customerId String?   @map("customer_id")
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  // ─── Device Link ─────────────────────────────────────────────
   deviceId String? @map("device_id")
   device   Device? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  // ─── Token Data ───────────────────────────────────────────────
-  // We store a SHA-256 hash of the refresh token, never the plain token.
-  tokenHash String @map("token_hash") @db.VarChar(255)
-
-  // Token family for rotation — all rotated tokens in one chain share this UUID.
-  // If we detect reuse of a revoked token from this family → revoke entire family.
+  tokenHash   String @map("token_hash") @db.VarChar(255)
   tokenFamily String @map("token_family") @db.VarChar(191)
 
   expiresAt DateTime @map("expires_at")
 
-  // ─── Revocation ──────────────────────────────────────────────
   revoked       Boolean   @default(false)
   revokedAt     DateTime? @map("revoked_at")
   revokedReason String?   @map("revoked_reason") @db.VarChar(100)
-  // Reason values: "LOGOUT" | "ROTATION" | "ALL_DEVICES" | "SECURITY" | "EXPIRED"
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -340,14 +318,13 @@ model AuthToken {
   @@map("auth_tokens")
 }
 
-// ─── OTP Verification ────────────────────────────────────────
 model VerificationOtp {
   id String @id @default(cuid())
 
   channel OtpChannel
   purpose OtpPurpose
 
-  target String @db.VarChar(255) // phone number or email
+  target String @db.VarChar(255)
 
   codeHash  String   @map("code_hash") @db.VarChar(255)
   expiresAt DateTime @map("expires_at")
@@ -763,6 +740,8 @@ model OrderPackage {
 // MODULE:  DEVICE.PRISMA
 // ========================================
 
+// prisma/modules/device.prisma
+
 model Device {
   id String @id @default(cuid())
 
@@ -774,14 +753,24 @@ model Device {
 
   userType AuthUserType @map("user_type")
 
-  deviceId String @map("device_id") @db.VarChar(191)
+  deviceId   String  @map("device_id") @db.VarChar(191)
+  deviceName String? @map("device_name") @db.VarChar(191)
+  deviceType String? @map("device_type") @db.VarChar(50)
 
-  createdAt DateTime @default(now()) @map("created_at")
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.Text
+
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastActiveAt DateTime  @default(now()) @map("last_active_at")
+  revokedAt    DateTime? @map("revoked_at")
 
   tokens AuthToken[]
 
   @@unique([adminId, deviceId])
   @@unique([customerId, deviceId])
+  @@index([isActive])
+  @@index([revokedAt])
   @@map("devices")
 }
 

@@ -18,7 +18,7 @@ import {
   ApiOperation,
   ApiResponse,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import type { Request } from 'express';
 
 import { AdminAuthService } from './admin-auth.service';
 import { CustomerAuthService } from './customer-auth.service';
@@ -43,7 +43,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserType } from '../common/decorators/user-type.decorator';
-import { RequestUser } from './auth.types';
+import type { RequestUser } from './auth.types';
 import { AdminRole } from '@prisma/client';
 
 // ─── Helper: extract device info from request ─────────────────
