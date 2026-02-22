@@ -12,7 +12,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 // ========================================
 // MODULE:  ADDRESS.PRISMA
 // ========================================
@@ -48,7 +47,6 @@ model Address {
   @@index([createdAt])
   @@map("addresses")
 }
-
 
 // ========================================
 // MODULE:  ADMIN.PRISMA
@@ -87,7 +85,6 @@ model Admin {
   @@index([deletedAt])
   @@map("admins")
 }
-
 
 // ========================================
 // MODULE:  API_KEY.PRISMA
@@ -147,7 +144,6 @@ model ApiKey {
   @@map("api_keys")
 }
 
-
 // ========================================
 // MODULE:  ATTRIBUTE_VALUE.PRISMA
 // ========================================
@@ -179,7 +175,6 @@ model AttributeValue {
   @@index([createdAt])
   @@map("attribute_values")
 }
-
 
 // ========================================
 // MODULE:  ATTRIBUTES.PRISMA
@@ -217,7 +212,6 @@ model Attribute {
   @@map("attributes")
 }
 
-
 // ========================================
 // MODULE:  ATTRIBUTES_SET.PRISMA
 // ========================================
@@ -241,7 +235,6 @@ model AttributeSet {
   @@index([deletedAt])
   @@map("attribute_sets")
 }
-
 
 // ========================================
 // MODULE:  AUDIT_LOG.PRISMA
@@ -271,7 +264,6 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
-
 
 // ========================================
 // MODULE:  AUTH_TOKEN.PRISMA
@@ -343,7 +335,6 @@ model VerificationOtp {
   @@map("verification_otps")
 }
 
-
 // ========================================
 // MODULE:  BRAND.PRISMA
 // ========================================
@@ -398,7 +389,6 @@ model Brand {
   @@map("brands")
 }
 
-
 // ========================================
 // MODULE:  CART.PRISMA
 // ========================================
@@ -426,7 +416,6 @@ model Cart {
   @@index([createdAt])
   @@map("carts")
 }
-
 
 // ========================================
 // MODULE:  CATEGORY.PRISMA
@@ -471,7 +460,6 @@ model Category {
   @@index([depth])
   @@map("categories")
 }
-
 
 // ========================================
 // MODULE:  COUPON.PRISMA
@@ -537,7 +525,6 @@ model CouponCategory {
   @@map("coupon_categories")
 }
 
-
 // ========================================
 // MODULE:  CURRENCY_RATE.PRISMA
 // ========================================
@@ -557,7 +544,6 @@ model CurrencyRate {
   @@index([deletedAt])
   @@map("currency_rates")
 }
-
 
 // ========================================
 // MODULE:  CUSTOMER.PRISMA
@@ -615,7 +601,6 @@ model Customer {
   @@index([isActive, deletedAt])
   @@map("customers")
 }
-
 
 // ========================================
 // MODULE:  DELIVERY.PRISMA
@@ -727,7 +712,6 @@ model OrderPackage {
   @@index([deletedAt])
   @@map("order_packages")
 }
-
 
 // ========================================
 // MODULE:  ENUMS.PRISMA
@@ -880,7 +864,6 @@ enum OptionPriceType {
   PERCENT
 }
 
-
 // ========================================
 // MODULE:  FILE.PRISMA
 // ========================================
@@ -918,7 +901,6 @@ model File {
   @@index([createdAt])
   @@map("files")
 }
-
 
 // ========================================
 // MODULE:  FLASH_SALE.PRISMA
@@ -980,21 +962,20 @@ model FlashSaleProduct {
   @@map("flash_sale_products")
 }
 
-
 // ========================================
 // MODULE:  INVENTORY_LOG.PRISMA
 // ========================================
 
 enum InventoryReason {
-  ORDER_PLACED       
-  ORDER_CANCELED     
-  ORDER_REFUNDED     
-  MANUAL_ADJUSTMENT  
-  RESTOCK            
-  DAMAGED            
-  RETURNED           
-  RESERVED           
-  RESERVATION_RELEASED 
+  ORDER_PLACED
+  ORDER_CANCELED
+  ORDER_REFUNDED
+  MANUAL_ADJUSTMENT
+  RESTOCK
+  DAMAGED
+  RETURNED
+  RESERVED
+  RESERVATION_RELEASED
 }
 
 model InventoryLog {
@@ -1020,7 +1001,6 @@ model InventoryLog {
   @@index([createdAt])
   @@map("inventory_logs")
 }
-
 
 // ========================================
 // MODULE:  NOTIFICATION.PRISMA
@@ -1061,7 +1041,6 @@ model Notification {
   @@index([createdAt])
   @@map("notifications")
 }
-
 
 // ========================================
 // MODULE:  OPTION.PRISMA
@@ -1133,7 +1112,6 @@ model ProductOption {
   @@index([optionId])
   @@map("product_options")
 }
-
 
 // ========================================
 // MODULE:  ORDER.PRISMA
@@ -1210,7 +1188,6 @@ model Order {
   @@map("orders")
 }
 
-
 // ========================================
 // MODULE:  ORDER_PRODUCT.PRISMA
 // ========================================
@@ -1244,7 +1221,6 @@ model OrderProduct {
   @@index([productId])
   @@map("order_products")
 }
-
 
 // ========================================
 // MODULE:  ORDER_PRODUCT_DETAILS.PRISMA
@@ -1309,7 +1285,6 @@ model OrderProductVariationValue {
   @@map("order_product_variation_values")
 }
 
-
 // ========================================
 // MODULE:  ORDER_STATUS_HISTORY.PRISMA
 // ========================================
@@ -1353,7 +1328,6 @@ model OrderStatusHistory {
   @@map("order_status_history")
 }
 
-
 // ========================================
 // MODULE:  PRICE_HISTORY.PRISMA
 // ========================================
@@ -1378,7 +1352,6 @@ model PriceHistory {
   @@index([createdAt])
   @@map("price_history")
 }
-
 
 // ========================================
 // MODULE:  PRODUCT.PRISMA
@@ -1511,7 +1484,6 @@ model ProductVariant {
   @@map("product_variants")
 }
 
-
 // ========================================
 // MODULE:  PRODUCT_ATTRIBUTE.PRISMA
 // ========================================
@@ -1543,7 +1515,6 @@ model ProductAttributeValue {
   @@index([attributeValueId])
   @@map("product_attribute_values")
 }
-
 
 // ========================================
 // MODULE:  PRODUCT_RELATIONS.PRISMA
@@ -1615,7 +1586,6 @@ model CrossSellProduct {
   @@index([crossSellProductId])
   @@map("cross_sell_products")
 }
-
 
 // ========================================
 // MODULE:  PROMOTION.PRISMA
@@ -1736,7 +1706,6 @@ model Promotion {
   @@map("promotions")
 }
 
-
 // ========================================
 // MODULE:  QUEUE_JOB.PRISMA
 // ========================================
@@ -1819,7 +1788,6 @@ model QueueJob {
   @@map("queue_jobs")
 }
 
-
 // ========================================
 // MODULE:  REFUND.PRISMA
 // ========================================
@@ -1878,7 +1846,6 @@ model Refund {
   @@map("refunds")
 }
 
-
 // ========================================
 // MODULE:  REVIEW.PRISMA
 // ========================================
@@ -1912,7 +1879,6 @@ model Review {
   @@map("reviews")
 }
 
-
 // ========================================
 // MODULE:  SEARCH_TERM.PRISMA
 // ========================================
@@ -1933,7 +1899,6 @@ model SearchTerm {
   @@index([deletedAt])
   @@map("search_terms")
 }
-
 
 // ========================================
 // MODULE:  SETTING.PRISMA
@@ -1963,7 +1928,6 @@ model Setting {
   @@index([deletedAt])
   @@map("settings")
 }
-
 
 // ========================================
 // MODULE:  SHIPPING.PRISMA
@@ -2022,7 +1986,6 @@ model ShippingRate {
   @@map("shipping_rates")
 }
 
-
 // ========================================
 // MODULE:  STOCK_RESERVATION.PRISMA
 // ========================================
@@ -2063,7 +2026,6 @@ model StockReservation {
   @@map("stock_reservations")
 }
 
-
 // ========================================
 // MODULE:  TAG.PRISMA
 // ========================================
@@ -2092,7 +2054,6 @@ model Tag {
   @@index([createdAt])
   @@map("tags")
 }
-
 
 // ========================================
 // MODULE:  TAX.PRISMA
@@ -2161,7 +2122,6 @@ model OrderTax {
   @@map("order_taxes")
 }
 
-
 // ========================================
 // MODULE:  TRANSACTION.PRISMA
 // ========================================
@@ -2195,7 +2155,6 @@ model Transaction {
   @@index([createdAt])
   @@map("transactions")
 }
-
 
 // ========================================
 // MODULE:  VARIATION.PRISMA
@@ -2271,7 +2230,6 @@ model ProductVariation {
   @@index([variationId])
   @@map("product_variations")
 }
-
 
 // ========================================
 // MODULE:  WISHLIST.PRISMA
