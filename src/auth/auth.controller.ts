@@ -1,5 +1,8 @@
 // ─── src/auth/auth.controller.ts ─────────────────────────────
-
+// Add to existing imports at top of auth.controller.ts:
+import { Patch } from '@nestjs/common';
+import { UpdateCustomerProfileDto } from './dto';
+import { UserType } from '../common/decorators/user-type.decorator';
 import {
   Controller,
   Post,
@@ -136,13 +139,19 @@ export class AuthController {
   @Roles(AdminRole.SUPERADMIN)
   @Patch('admin/:id/permissions')
   @ApiOperation({ summary: 'Update admin permissions (SUPERADMIN only)' })
+  // REPLACE THIS:
+  // WITH THIS:
   async updateAdminPermissions(
     @Param('id') id: string,
     @Body() dto: UpdateAdminPermissionsDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.adminAuthService.updatePermissions(id, dto, user.role!);
-    return { message: 'Permissions updated', data: null };
+    const result = await this.adminAuthService.updatePermissions(
+      id,
+      dto,
+      user.role!,
+    );
+    return { message: 'Permissions updated', data: result };
   }
 
   @ApiBearerAuth('access-token')
@@ -444,5 +453,30 @@ export class AuthController {
 
     await this.tokenService.revokeDeviceTokens(deviceDbId, 'DEVICE_LOGOUT');
     return { message: 'Device logged out', data: null };
+  }
+
+  @ApiBearerAuth('access-token')
+  @UserType('CUSTOMER')
+  @Patch('customer/profile')
+  @ApiOperation({ summary: 'Update customer profile' })
+  async updateCustomerProfile(
+    @Body() dto: UpdateCustomerProfileDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const updated = await this.customerAuthService.updateProfile(user.id, dto);
+    return { message: 'Profile updated', data: updated };
+  }
+
+  @ApiBearerAuth('access-token')
+  @UserType('CUSTOMER')
+  @Post('customer/change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change password (must know current password)' })
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.customerAuthService.changePassword(user.id, dto);
+    return { message: 'Password changed successfully', data: null };
   }
 }

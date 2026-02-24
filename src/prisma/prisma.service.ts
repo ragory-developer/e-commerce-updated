@@ -87,10 +87,10 @@ export class PrismaService
             if (!SOFT_DELETE_MODELS.has(model)) {
               return query(args);
             }
-            args.where = {
-              ...args.where,
-              deletedAt: null,
-            } as any;
+            // args.where = {
+            //   ...args.where,
+            //   deletedAt: null,
+            // } as any;
             return query(args);
           },
 
@@ -132,7 +132,8 @@ export class PrismaService
           // ─── DELETE Operations: Not intercepted ───────────────────
           // Prisma v6 extensions cannot safely redirect delete to update.
           // Instead, use the softDelete() helper method in service layer:
-          //   await this.prisma.softDelete('product', id, deletedByAdminId)
+          //   await this.
+          // ('product', id, deletedByAdminId)
           // instead of:
           //   await this.prisma.product.delete({ where: { id } })
         },

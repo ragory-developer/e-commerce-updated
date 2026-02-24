@@ -1,5 +1,5 @@
 // ─── src/app.module.ts ───────────────────────────────────────
-
+import { TasksModule } from './tasks/tasks.module';
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -21,6 +21,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { UserTypeGuard } from './common/guards/user-type.guard';
+import { AddressModule } from './address/address.module';
 
 @Module({
   imports: [
@@ -40,9 +41,11 @@ import { UserTypeGuard } from './common/guards/user-type.guard';
     ]),
 
     // ─── Core Modules ─────────────────────────────────────────────
+    TasksModule,
     PrismaModule,
     OtpModule,
     AuthModule,
+    AddressModule,
   ],
 
   controllers: [AppController],

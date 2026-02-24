@@ -150,7 +150,27 @@ export class CustomerAuthService {
       });
     }
 
+
+
     this.logger.log(`Customer registered: ${dto.phone}`);
+
+// Save address if provided during registration
+if (dto.address) {
+  await this.prisma.address.create({
+    data: {
+      customerId: customer.id,
+      label: dto.address.label ?? 'Home',
+      address: dto.address.address,
+      descriptions: dto.address.descriptions ?? '',
+      city: dto.address.city,
+      state: dto.address.state,
+      road: dto.address.road ?? '',
+      zip: dto.address.zip,
+      country: dto.address.country,
+      isDefault: true,
+      createdBy: customer.id,
+    },
+  });
 
     return this.tokenService.loginAndIssueTokens(
       'CUSTOMER',
@@ -423,4 +443,75 @@ export class CustomerAuthService {
     if (phone.length < 7) return '****';
     return `${phone.substring(0, 4)}****${phone.substring(phone.length - 3)}`;
   }
+
+  async updateProfile(
+  customerId: string,
+  dto: UpdateCustomerProfileDto,
+): Promise<object> {
+  // If updating email, check it's not taken
+  if (dto.email) {
+    const emailTaken = await this.prisma.customer.findFirst({
+      where: {
+        email: dto.email,
+        id: { not: customerId },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (emailTaken) {
+      throw new ConflictException(AUTH_ERROR.CUSTOMER_EMAIL_TAKEN);
+    }
+  }
+
+  const updated = await this.prisma.customer.update({
+    where: { id: customerId },
+    data: {
+      ...(dto.firstName && { firstName: dto.firstName }),
+      ...(dto.lastName && { lastName: dto.lastName }),
+      ...(dto.email && { email: dto.email, emailVerified: false }),
+      ...(dto.avatar && { avatar: dto.avatar }),
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      emailVerified: true,
+      phone: true,
+      avatar: true,
+    },
+  });
+
+  return updated;
+  }
+
+  async changePassword(customerId: string, dto: ChangePasswordDto): Promise<void> {
+  const customer = await this.prisma.customer.findFirst({
+    where: { id: customerId, deletedAt: null },
+    select: { id: true, password: true },
+  });
+
+  if (!customer || !customer.password) {
+    throw new BadRequestException('No password set on this account');
+  }
+
+  const valid = await bcrypt.compare(dto.currentPassword, customer.password);
+  if (!valid) {
+    throw new UnauthorizedException('Current password is incorrect');
+  }
+
+  const hashed = await bcrypt.hash(dto.newPassword, AUTH_CONFIG.BCRYPT_ROUNDS);
+
+  await this.prisma.customer.update({
+    where: { id: customerId },
+    data: { password: hashed },
+  });
+
+  // Revoke all other sessions — force re-login everywhere
+  await this.tokenService.revokeAllOwnerTokens(
+    'CUSTOMER',
+    customerId,
+    'PASSWORD_CHANGE',
+  );
+}
 }

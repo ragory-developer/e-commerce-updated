@@ -13,9 +13,36 @@
  * 11. this.cleanupTempFiles() - clean up old files in the temp files directory
  * 12. this.cleanupCacheFiles() - clean up old files in the cache files directory
  */
+// src/tasks/cleanup.task.ts
+
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { TokenService } from '../auth/token.service';
+import { OtpService } from '../otp/otp.service';
 
 @Injectable()
 export class CleanupTask {
   private readonly logger = new Logger(CleanupTask.name);
+
+  constructor(
+    private readonly tokenService: TokenService,
+    private readonly otpService: OtpService,
+  ) {}
+
+  // Run every night at 2 AM
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async cleanupExpiredTokens() {
+    this.logger.log('Running token cleanup...');
+    const count = await this.tokenService.cleanupExpiredTokens();
+    this.logger.log(`Cleaned ${count} expired tokens`);
+  }
+
+  // Run every hour
+  @Cron(CronExpression.EVERY_HOUR)
+  async cleanupExpiredOtps() {
+    const count = await this.otpService.cleanupExpiredOtps();
+    if (count > 0) {
+      this.logger.log(`Cleaned ${count} expired OTPs`);
+    }
+  }
 }

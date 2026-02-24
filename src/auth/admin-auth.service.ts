@@ -186,28 +186,60 @@ export class AdminAuthService {
   }
 
   // ─── Update Admin Permissions ─────────────────────────────────
+  // WITH THIS:
   async updatePermissions(
     targetId: string,
     dto: UpdateAdminPermissionsDto,
     callerRole: AdminRole,
-  ): Promise<void> {
+  ): Promise<{ permissions: AdminPermission[] }> {
     if (callerRole !== AdminRole.SUPERADMIN) {
       throw new ForbiddenException(AUTH_ERROR.ADMIN_INSUFFICIENT_ROLE);
     }
 
+    if (!dto.add && !dto.remove && !dto.set) {
+      throw new BadRequestException(
+        'Provide at least one of: add, remove, or set',
+      );
+    }
+
     const target = await this.prisma.admin.findFirst({
       where: { id: targetId, deletedAt: null },
-      select: { id: true, role: true },
+      select: { id: true, role: true, permissions: true },
     });
     if (!target) throw new NotFoundException(AUTH_ERROR.ADMIN_NOT_FOUND);
     if (target.role === AdminRole.SUPERADMIN) {
       throw new ForbiddenException('Cannot modify SUPERADMIN permissions');
     }
 
+    let updatedPermissions: AdminPermission[];
+
+    if (dto.set) {
+      // Full replace
+      updatedPermissions = dto.set;
+    } else {
+      // Partial add/remove
+      let current = new Set<AdminPermission>(target.permissions);
+
+      if (dto.add) {
+        dto.add.forEach((p) => current.add(p));
+      }
+      if (dto.remove) {
+        dto.remove.forEach((p) => current.delete(p));
+      }
+
+      updatedPermissions = Array.from(current);
+    }
+
     await this.prisma.admin.update({
       where: { id: targetId },
-      data: { permissions: dto.permissions },
+      data: { permissions: updatedPermissions },
     });
+
+    this.logger.log(
+      `Permissions updated for admin ${targetId}: ${updatedPermissions.join(', ')}`,
+    );
+
+    return { permissions: updatedPermissions };
   }
 
   // ─── Update Admin Role ────────────────────────────────────────
@@ -358,34 +390,53 @@ export class AdminAuthService {
   }
 
   // ─── Increment Login Attempts (shared) ───────────────────────
+  // REPLACE the private incrementLoginAttempts method entirely:
   private async incrementLoginAttempts(
     id: string,
     userType: 'ADMIN' | 'CUSTOMER',
   ): Promise<void> {
-    const model =
-      userType === 'ADMIN' ? this.prisma.admin : this.prisma.customer;
-    const record = await (model as any).findUnique({
-      where: { id },
-      select: { loginAttempts: true },
-    });
-
-    const newAttempts = (record?.loginAttempts ?? 0) + 1;
-    const shouldLock = newAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS;
-
-    await (model as any).update({
-      where: { id },
-      data: {
-        loginAttempts: newAttempts,
-        lockedUntil: shouldLock
-          ? new Date(Date.now() + AUTH_CONFIG.LOCK_DURATION_MS)
-          : undefined,
-      },
-    });
-
-    if (shouldLock) {
-      this.logger.warn(
-        `Account ${id} locked after ${newAttempts} failed attempts`,
-      );
+    if (userType === 'ADMIN') {
+      const admin = await this.prisma.admin.findFirst({
+        where: { id, deletedAt: null },
+        select: { loginAttempts: true },
+      });
+      const newAttempts = (admin?.loginAttempts ?? 0) + 1;
+      const shouldLock = newAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS;
+      await this.prisma.admin.update({
+        where: { id },
+        data: {
+          loginAttempts: newAttempts,
+          lockedUntil: shouldLock
+            ? new Date(Date.now() + AUTH_CONFIG.LOCK_DURATION_MS)
+            : undefined,
+        },
+      });
+      if (shouldLock) {
+        this.logger.warn(
+          `Admin ${id} locked after ${newAttempts} failed attempts`,
+        );
+      }
+    } else {
+      const customer = await this.prisma.customer.findFirst({
+        where: { id, deletedAt: null },
+        select: { loginAttempts: true },
+      });
+      const newAttempts = (customer?.loginAttempts ?? 0) + 1;
+      const shouldLock = newAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS;
+      await this.prisma.customer.update({
+        where: { id },
+        data: {
+          loginAttempts: newAttempts,
+          lockedUntil: shouldLock
+            ? new Date(Date.now() + AUTH_CONFIG.LOCK_DURATION_MS)
+            : undefined,
+        },
+      });
+      if (shouldLock) {
+        this.logger.warn(
+          `Customer ${id} locked after ${newAttempts} failed attempts`,
+        );
+      }
     }
   }
 }
