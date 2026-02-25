@@ -1,5 +1,3 @@
-// ─── src/auth/auth.module.ts ──────────────────────────────────
-
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -14,16 +12,18 @@ import { CustomerAuthService } from './customer-auth.service';
 import { TokenService } from './token.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
+import { forwardRef } from '@nestjs/common';
+import { AdminModule } from '../admin/admin.module';
+import { CustomerModule } from '../customer/customer.module';
+
 @Module({
   imports: [
     ConfigModule,
     PrismaModule,
     OtpModule,
-
-    // Passport with JWT as default strategy
+    forwardRef(() => AdminModule),
+    forwardRef(() => CustomerModule),
     PassportModule.register({ defaultStrategy: 'jwt' }),
-
-    // JwtModule with async config (reads from ConfigService)
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

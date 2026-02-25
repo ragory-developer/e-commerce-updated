@@ -1,26 +1,10 @@
-// ─── src/auth/admin-auth.service.ts ──────────────────────────
-
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
-import { AdminRole, AdminPermission } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TokenService } from './token.service';
-import {
-  AdminLoginDto,
-  CreateAdminDto,
-  UpdateAdminPermissionsDto,
-  UpdateAdminRoleDto,
-} from './dto';
-import { DeviceInfo, AuthResult } from './auth.types';
+import { AdminLoginDto } from './dto';
+import { AuthResult, DeviceInfo } from './auth.types';
 import { AUTH_CONFIG, AUTH_ERROR } from './auth.constants';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminAuthService {
@@ -31,13 +15,13 @@ export class AdminAuthService {
     private readonly tokenService: TokenService,
   ) {}
 
-  // ─── Admin Login ──────────────────────────────────────────────
-  async login(dto: AdminLoginDto, deviceInfo: DeviceInfo): Promise<AuthResult> {
+  // ! Admin Login
+  async AdminLogin(
+    dto: AdminLoginDto,
+    deviceInfo: DeviceInfo,
+  ): Promise<AuthResult> {
     const admin = await this.prisma.admin.findFirst({
-      where: {
-        email: dto.email.toLowerCase(),
-        deletedAt: null,
-      },
+      where: { email: dto.email.toLowerCase(), deletedAt: null },
       select: {
         id: true,
         email: true,
@@ -50,29 +34,25 @@ export class AdminAuthService {
       },
     });
 
-    // ─── Account not found (use same error as wrong password to prevent enumeration)
+    // ! same error for not-found and wrong password
     if (!admin) {
       throw new UnauthorizedException(AUTH_ERROR.INVALID_CREDENTIALS);
     }
 
-    // ─── Account locked check ─────────────────────────────────────
     if (admin.lockedUntil && admin.lockedUntil > new Date()) {
       throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_LOCKED);
     }
 
-    // ─── Account disabled ─────────────────────────────────────────
     if (!admin.isActive) {
       throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_DISABLED);
     }
 
-    // ─── Password check ───────────────────────────────────────────
     const passwordValid = await bcrypt.compare(dto.password, admin.password);
     if (!passwordValid) {
-      await this.incrementLoginAttempts(admin.id, 'ADMIN');
       throw new UnauthorizedException(AUTH_ERROR.INVALID_CREDENTIALS);
     }
 
-    // ─── Reset attempts on success ────────────────────────────────
+    // ! Reset on success Login
     await this.prisma.admin.update({
       where: { id: admin.id },
       data: {
@@ -83,7 +63,6 @@ export class AdminAuthService {
       },
     });
 
-    // ─── Issue tokens ─────────────────────────────────────────────
     return this.tokenService.loginAndIssueTokens(
       'ADMIN',
       admin.id,
@@ -93,65 +72,13 @@ export class AdminAuthService {
     );
   }
 
-  // ─── Create Admin (only SUPERADMIN can do this) ───────────────
-  async createAdmin(
-    dto: CreateAdminDto,
-    createdBy: string,
-    callerRole: AdminRole,
-  ): Promise<{ id: string; email: string; role: AdminRole }> {
-    // Only SUPERADMIN can create other admins
-    if (callerRole !== AdminRole.SUPERADMIN) {
-      throw new ForbiddenException(AUTH_ERROR.ADMIN_INSUFFICIENT_ROLE);
-    }
-
-    // Cannot create another SUPERADMIN
-    if (dto.role === AdminRole.SUPERADMIN) {
-      throw new ForbiddenException('Cannot create another SUPERADMIN');
-    }
-
-    const exists = await this.prisma.admin.findFirst({
-      where: { email: dto.email.toLowerCase(), deletedAt: null },
-      select: { id: true },
-    });
-    if (exists) {
-      throw new ConflictException(AUTH_ERROR.ADMIN_EMAIL_TAKEN);
-    }
-
-    const hashedPassword = await bcrypt.hash(
-      dto.password,
-      AUTH_CONFIG.BCRYPT_ROUNDS,
-    );
-
-    const admin = await this.prisma.admin.create({
-      data: {
-        firstName: dto.firstName.trim(),
-        lastName: dto.lastName.trim(),
-        email: dto.email.toLowerCase(),
-        phone: dto.phone ?? null,
-        password: hashedPassword,
-        role: dto.role ?? AdminRole.ADMIN,
-        permissions: dto.permissions ?? [],
-        isActive: true,
-        createdBy,
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
-
-    this.logger.log(`Admin created: ${admin.email} by ${createdBy}`);
-    return admin;
-  }
-
-  // ─── Seed Super Admin (called on app bootstrap) ───────────────
+  // ! seed super Admin
   async seedSuperAdmin(): Promise<void> {
-    const email = AUTH_CONFIG.SUPER_ADMIN_EMAIL;
+    const email = process.env.SUPER_ADMIN_EMAIL;
     if (!email) {
-      this.logger.warn('SUPER_ADMIN_EMAIL not set, skipping seed');
+      this.logger.warn(
+        'SUPER_ADMIN_EMAIL not set, skipping super admin seeding',
+      );
       return;
     }
 
@@ -165,6 +92,7 @@ export class AdminAuthService {
       return;
     }
 
+    const { AdminPermission } = await import('@prisma/client');
     const hashedPassword = await bcrypt.hash(
       AUTH_CONFIG.SUPER_ADMIN_PASSWORD,
       AUTH_CONFIG.BCRYPT_ROUNDS,
@@ -176,7 +104,7 @@ export class AdminAuthService {
         lastName: AUTH_CONFIG.SUPER_ADMIN_LAST_NAME,
         email: email.toLowerCase(),
         password: hashedPassword,
-        role: AdminRole.SUPERADMIN,
+        role: 'SUPERADMIN',
         permissions: Object.values(AdminPermission),
         isActive: true,
       },
@@ -185,258 +113,27 @@ export class AdminAuthService {
     this.logger.log(`Super admin seeded: ${email}`);
   }
 
-  // ─── Update Admin Permissions ─────────────────────────────────
-  // WITH THIS:
-  async updatePermissions(
-    targetId: string,
-    dto: UpdateAdminPermissionsDto,
-    callerRole: AdminRole,
-  ): Promise<{ permissions: AdminPermission[] }> {
-    if (callerRole !== AdminRole.SUPERADMIN) {
-      throw new ForbiddenException(AUTH_ERROR.ADMIN_INSUFFICIENT_ROLE);
-    }
-
-    if (!dto.add && !dto.remove && !dto.set) {
-      throw new BadRequestException(
-        'Provide at least one of: add, remove, or set',
-      );
-    }
-
-    const target = await this.prisma.admin.findFirst({
-      where: { id: targetId, deletedAt: null },
-      select: { id: true, role: true, permissions: true },
-    });
-    if (!target) throw new NotFoundException(AUTH_ERROR.ADMIN_NOT_FOUND);
-    if (target.role === AdminRole.SUPERADMIN) {
-      throw new ForbiddenException('Cannot modify SUPERADMIN permissions');
-    }
-
-    let updatedPermissions: AdminPermission[];
-
-    if (dto.set) {
-      // Full replace
-      updatedPermissions = dto.set;
-    } else {
-      // Partial add/remove
-      let current = new Set<AdminPermission>(target.permissions);
-
-      if (dto.add) {
-        dto.add.forEach((p) => current.add(p));
-      }
-      if (dto.remove) {
-        dto.remove.forEach((p) => current.delete(p));
-      }
-
-      updatedPermissions = Array.from(current);
-    }
-
-    await this.prisma.admin.update({
-      where: { id: targetId },
-      data: { permissions: updatedPermissions },
-    });
-
-    this.logger.log(
-      `Permissions updated for admin ${targetId}: ${updatedPermissions.join(', ')}`,
-    );
-
-    return { permissions: updatedPermissions };
-  }
-
-  // ─── Update Admin Role ────────────────────────────────────────
-  async updateRole(
-    targetId: string,
-    dto: UpdateAdminRoleDto,
-    callerRole: AdminRole,
-  ): Promise<void> {
-    if (callerRole !== AdminRole.SUPERADMIN) {
-      throw new ForbiddenException(AUTH_ERROR.ADMIN_INSUFFICIENT_ROLE);
-    }
-    if (dto.role === AdminRole.SUPERADMIN) {
-      throw new ForbiddenException('Cannot promote to SUPERADMIN');
-    }
-
-    const target = await this.prisma.admin.findFirst({
-      where: { id: targetId, deletedAt: null },
-      select: { id: true, role: true },
-    });
-    if (!target) throw new NotFoundException(AUTH_ERROR.ADMIN_NOT_FOUND);
-    if (target.role === AdminRole.SUPERADMIN) {
-      throw new ForbiddenException('Cannot change SUPERADMIN role');
-    }
-
-    await this.prisma.admin.update({
-      where: { id: targetId },
-      data: { role: dto.role },
-    });
-  }
-
-  // ─── Enable / Disable Admin ───────────────────────────────────
-  async setActiveStatus(
-    targetId: string,
-    isActive: boolean,
-    callerRole: AdminRole,
-    callerId: string,
-  ): Promise<void> {
-    if (callerRole !== AdminRole.SUPERADMIN) {
-      throw new ForbiddenException(AUTH_ERROR.ADMIN_INSUFFICIENT_ROLE);
-    }
-    if (targetId === callerId) {
-      throw new BadRequestException('Cannot modify your own status');
-    }
-
-    const target = await this.prisma.admin.findFirst({
-      where: { id: targetId, deletedAt: null },
-      select: { id: true, role: true },
-    });
-    if (!target) throw new NotFoundException(AUTH_ERROR.ADMIN_NOT_FOUND);
-    if (target.role === AdminRole.SUPERADMIN) {
-      throw new ForbiddenException('Cannot disable SUPERADMIN');
-    }
-
-    await this.prisma.admin.update({
-      where: { id: targetId },
-      data: { isActive },
-    });
-
-    // If disabling, revoke all their tokens
-    if (!isActive) {
-      await this.tokenService.revokeAllOwnerTokens(
-        'ADMIN',
-        targetId,
-        'ACCOUNT_DISABLED',
-      );
-    }
-  }
-
-  // ─── Soft Delete Admin ────────────────────────────────────────
-  async deleteAdmin(
-    targetId: string,
-    callerRole: AdminRole,
-    callerId: string,
-  ): Promise<void> {
-    if (callerRole !== AdminRole.SUPERADMIN) {
-      throw new ForbiddenException(AUTH_ERROR.ADMIN_INSUFFICIENT_ROLE);
-    }
-    if (targetId === callerId) {
-      throw new BadRequestException('Cannot delete yourself');
-    }
-
-    const target = await this.prisma.admin.findFirst({
-      where: { id: targetId, deletedAt: null },
-      select: { id: true, role: true },
-    });
-    if (!target) throw new NotFoundException(AUTH_ERROR.ADMIN_NOT_FOUND);
-    if (target.role === AdminRole.SUPERADMIN) {
-      throw new ForbiddenException('Cannot delete SUPERADMIN');
-    }
-
-    // Revoke all tokens first
-    await this.tokenService.revokeAllOwnerTokens(
-      'ADMIN',
-      targetId,
-      'ACCOUNT_DELETED',
-    );
-
-    await this.prisma.admin.update({
-      where: { id: targetId },
-      data: { deletedAt: new Date(), deletedBy: callerId, isActive: false },
-    });
-  }
-
-  // ─── List Admins ──────────────────────────────────────────────
-  async listAdmins(callerRole: AdminRole) {
-    if (callerRole !== AdminRole.SUPERADMIN) {
-      throw new ForbiddenException(AUTH_ERROR.ADMIN_INSUFFICIENT_ROLE);
-    }
-
-    return this.prisma.admin.findMany({
-      where: { deletedAt: null },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        role: true,
-        permissions: true,
-        isActive: true,
-        lastLoginAt: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  // ─── Get Admin Profile ────────────────────────────────────────
-  async getAdminProfile(adminId: string) {
+  private async incrementLoginAttempts(id: string): Promise<void> {
     const admin = await this.prisma.admin.findFirst({
-      where: { id: adminId, deletedAt: null },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        role: true,
-        permissions: true,
-        isActive: true,
-        lastLoginAt: true,
-        avatar: true,
-        createdAt: true,
+      where: { id, isActive: true },
+    });
+
+    const newAttempts = (admin?.loginAttempts ?? 0) + 1;
+    const shouldLock = newAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS;
+
+    await this.prisma.admin.update({
+      where: { id },
+      data: {
+        loginAttempts: newAttempts,
+        lockedUntil: shouldLock
+          ? new Date(Date.now() + AUTH_CONFIG.LOCK_DURATION_MS)
+          : undefined,
       },
     });
-    if (!admin) throw new NotFoundException(AUTH_ERROR.ADMIN_NOT_FOUND);
-    return admin;
-  }
-
-  // ─── Increment Login Attempts (shared) ───────────────────────
-  // REPLACE the private incrementLoginAttempts method entirely:
-  private async incrementLoginAttempts(
-    id: string,
-    userType: 'ADMIN' | 'CUSTOMER',
-  ): Promise<void> {
-    if (userType === 'ADMIN') {
-      const admin = await this.prisma.admin.findFirst({
-        where: { id, deletedAt: null },
-        select: { loginAttempts: true },
-      });
-      const newAttempts = (admin?.loginAttempts ?? 0) + 1;
-      const shouldLock = newAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS;
-      await this.prisma.admin.update({
-        where: { id },
-        data: {
-          loginAttempts: newAttempts,
-          lockedUntil: shouldLock
-            ? new Date(Date.now() + AUTH_CONFIG.LOCK_DURATION_MS)
-            : undefined,
-        },
-      });
-      if (shouldLock) {
-        this.logger.warn(
-          `Admin ${id} locked after ${newAttempts} failed attempts`,
-        );
-      }
-    } else {
-      const customer = await this.prisma.customer.findFirst({
-        where: { id, deletedAt: null },
-        select: { loginAttempts: true },
-      });
-      const newAttempts = (customer?.loginAttempts ?? 0) + 1;
-      const shouldLock = newAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS;
-      await this.prisma.customer.update({
-        where: { id },
-        data: {
-          loginAttempts: newAttempts,
-          lockedUntil: shouldLock
-            ? new Date(Date.now() + AUTH_CONFIG.LOCK_DURATION_MS)
-            : undefined,
-        },
-      });
-      if (shouldLock) {
-        this.logger.warn(
-          `Customer ${id} locked after ${newAttempts} failed attempts`,
-        );
-      }
+    if (shouldLock) {
+      this.logger.warn(
+        `Admin ${id} locked due to too many failed login attempts`,
+      );
     }
   }
 }

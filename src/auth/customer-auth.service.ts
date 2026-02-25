@@ -1,4 +1,6 @@
 // ─── src/auth/customer-auth.service.ts ───────────────────────
+// Responsibility: Customer AUTHENTICATION only.
+// Profile management → customer.service.ts
 
 import {
   Injectable,
@@ -13,15 +15,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PhoneOtpService } from '../otp/phone-otp.service';
 import { TokenService } from './token.service';
 import {
-  CustomerRegisterDto,
+  CustomerCompleteRegistrationDto,
   CustomerPasswordLoginDto,
-  CustomerOtpLoginDto,
+  CustomerOtpLoginVerifyDto,
+  CustomerOtpLoginRequestDto,
   CustomerRequestOtpDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  VerifyPhoneRequestDto,
+  VerifyPhoneConfirmDto,
 } from './dto';
 import { DeviceInfo, AuthResult } from './auth.types';
 import { AUTH_CONFIG, AUTH_ERROR } from './auth.constants';
+import { maskPhone } from '../common/helpers/mask.helper';
 
 @Injectable()
 export class CustomerAuthService {
@@ -33,21 +39,23 @@ export class CustomerAuthService {
     private readonly tokenService: TokenService,
   ) {}
 
-  // ─── Step 1: Request OTP for registration ─────────────────────
-  // The client calls this first. We send OTP to the phone.
+  // ══════════════════════════════════════════════════════════════
+  // REGISTRATION — 3-STEP FLOW
+  // ══════════════════════════════════════════════════════════════
+
+  // ─── Step 1: Request OTP ──────────────────────────────────────
   async requestRegistrationOtp(
     dto: CustomerRequestOtpDto,
     ipAddress?: string,
     userAgent?: string,
   ): Promise<{ maskedPhone: string; expiresInSeconds: number }> {
-    // If phone already registered as a full account, reject
+    // If already a full account, reject (tell them to login)
     const existing = await this.prisma.customer.findFirst({
       where: { phone: dto.phone, deletedAt: null },
       select: { id: true, isGuest: true },
     });
 
     if (existing && !existing.isGuest) {
-      // Phone registered → suggest login instead
       throw new ConflictException(AUTH_ERROR.CUSTOMER_PHONE_TAKEN);
     }
 
@@ -68,17 +76,16 @@ export class CustomerAuthService {
     };
   }
 
-  // ─── Step 2: Complete registration with OTP + profile data ────
-  async register(
-    dto: CustomerRegisterDto,
-    deviceInfo: DeviceInfo,
-  ): Promise<AuthResult> {
-    // Verify the OTP (consume it so it can't be reused)
+  // ─── Step 2: Verify OTP → registration token ──────────────────
+  async verifyRegistrationOtp(
+    phone: string,
+    code: string,
+  ): Promise<{ registrationToken: string; maskedPhone: string }> {
     const otpResult = await this.phoneOtpService.verifyOtp({
-      target: dto.phone,
+      target: phone,
       purpose: 'REGISTER_ACCOUNT',
-      code: dto.otpCode,
-      consume: true,
+      code,
+      consume: true, // consume so it can't be replayed
     });
 
     if (!otpResult.success) {
@@ -87,21 +94,41 @@ export class CustomerAuthService {
       );
     }
 
+    // Issue a short-lived registration token (15 min)
+    // This proves the phone was verified without issuing a full auth token
+    const registrationToken =
+      this.tokenService.generateRegistrationToken(phone);
+
+    return {
+      registrationToken,
+      maskedPhone: maskPhone(phone),
+    };
+  }
+
+  // ─── Step 3: Complete Registration ────────────────────────────
+  async completeRegistration(
+    dto: CustomerCompleteRegistrationDto,
+    deviceInfo: DeviceInfo,
+  ): Promise<AuthResult> {
+    // Validate the registration token
+    const tokenPayload = this.tokenService.verifyRegistrationToken(
+      dto.registrationToken,
+    );
+    const phone = tokenPayload.sub;
+
     // Check for conflicts
     const existingPhone = await this.prisma.customer.findFirst({
-      where: { phone: dto.phone, isGuest: false, deletedAt: null },
+      where: { phone, isGuest: false, deletedAt: null },
     });
-    if (existingPhone) {
+    if (existingPhone)
       throw new ConflictException(AUTH_ERROR.CUSTOMER_PHONE_TAKEN);
-    }
 
     if (dto.email) {
       const existingEmail = await this.prisma.customer.findFirst({
         where: { email: dto.email.toLowerCase(), deletedAt: null },
       });
-      if (existingEmail) {
+      if (existingEmail)
         throw new ConflictException(AUTH_ERROR.CUSTOMER_EMAIL_TAKEN);
-      }
     }
 
     const hashedPassword = await bcrypt.hash(
@@ -109,17 +136,17 @@ export class CustomerAuthService {
       AUTH_CONFIG.BCRYPT_ROUNDS,
     );
 
-    // Check if a guest account with this phone already exists
+    // Check if a guest account with this phone exists (upgrade it)
     const guestAccount = await this.prisma.customer.findFirst({
-      where: { phone: dto.phone, isGuest: true, deletedAt: null },
+      where: { phone, isGuest: true, deletedAt: null },
       select: { id: true },
     });
 
-    let customer: { id: string };
+    let customerId: string;
 
     if (guestAccount) {
-      // Upgrade the guest account to a full account
-      customer = await this.prisma.customer.update({
+      // Upgrade guest → full account (same ID, all orders preserved)
+      const updated = await this.prisma.customer.update({
         where: { id: guestAccount.id },
         data: {
           firstName: dto.firstName.trim(),
@@ -129,17 +156,16 @@ export class CustomerAuthService {
           isGuest: false,
           phoneVerified: true,
           isActive: true,
-          updatedAt: new Date(),
         },
         select: { id: true },
       });
+      customerId = updated.id;
     } else {
-      // Create new customer account
-      customer = await this.prisma.customer.create({
+      const created = await this.prisma.customer.create({
         data: {
           firstName: dto.firstName.trim(),
           lastName: dto.lastName.trim(),
-          phone: dto.phone,
+          phone,
           email: dto.email?.toLowerCase() ?? null,
           password: hashedPassword,
           isGuest: false,
@@ -148,36 +174,40 @@ export class CustomerAuthService {
         },
         select: { id: true },
       });
+      customerId = created.id;
     }
 
+    // Save optional address
+    if (dto.address) {
+      await this.prisma.address.create({
+        data: {
+          customerId,
+          label: dto.address.label ?? 'Home',
+          address: dto.address.address,
+          descriptions: dto.address.descriptions ?? '',
+          city: dto.address.city,
+          state: dto.address.state,
+          road: dto.address.road ?? '',
+          zip: dto.address.zip,
+          country: dto.address.country,
+          isDefault: true,
+          createdBy: customerId,
+        },
+      });
+    }
 
-
-    this.logger.log(`Customer registered: ${dto.phone}`);
-
-// Save address if provided during registration
-if (dto.address) {
-  await this.prisma.address.create({
-    data: {
-      customerId: customer.id,
-      label: dto.address.label ?? 'Home',
-      address: dto.address.address,
-      descriptions: dto.address.descriptions ?? '',
-      city: dto.address.city,
-      state: dto.address.state,
-      road: dto.address.road ?? '',
-      zip: dto.address.zip,
-      country: dto.address.country,
-      isDefault: true,
-      createdBy: customer.id,
-    },
-  });
+    this.logger.log(`Customer registered: ${phone}`);
 
     return this.tokenService.loginAndIssueTokens(
       'CUSTOMER',
-      customer.id,
+      customerId,
       deviceInfo,
     );
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // LOGIN
+  // ══════════════════════════════════════════════════════════════
 
   // ─── Login with Password ──────────────────────────────────────
   async loginWithPassword(
@@ -197,33 +227,26 @@ if (dto.address) {
       },
     });
 
-    if (!customer) {
+    if (!customer)
       throw new UnauthorizedException(AUTH_ERROR.INVALID_CREDENTIALS);
-    }
 
-    // Account locked?
     if (customer.lockedUntil && customer.lockedUntil > new Date()) {
       throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_LOCKED);
     }
 
-    // Account disabled?
-    if (!customer.isActive) {
+    if (!customer.isActive)
       throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_DISABLED);
-    }
 
-    // Guest accounts can't login with password
     if (customer.isGuest || !customer.password) {
       throw new UnauthorizedException(AUTH_ERROR.CUSTOMER_IS_GUEST);
     }
 
-    // Password check
     const valid = await bcrypt.compare(dto.password, customer.password);
     if (!valid) {
       await this.incrementLoginAttempts(customer.id);
       throw new UnauthorizedException(AUTH_ERROR.INVALID_CREDENTIALS);
     }
 
-    // Reset attempts on success
     await this.prisma.customer.update({
       where: { id: customer.id },
       data: {
@@ -241,9 +264,9 @@ if (dto.address) {
     );
   }
 
-  // ─── Request OTP for OTP-based login ─────────────────────────
+  // ─── Request OTP login ────────────────────────────────────────
   async requestLoginOtp(
-    dto: CustomerRequestOtpDto,
+    dto: CustomerOtpLoginRequestDto,
     ipAddress?: string,
     userAgent?: string,
   ): Promise<{ maskedPhone: string; expiresInSeconds: number }> {
@@ -252,10 +275,9 @@ if (dto.address) {
       select: { id: true, isActive: true },
     });
 
-    // Don't reveal if account doesn't exist
+    // Don't reveal if account exists (prevent enumeration)
     if (!customer || !customer.isActive) {
-      // Still send "success" to prevent enumeration
-      return { maskedPhone: this.maskPhone(dto.phone), expiresInSeconds: 300 };
+      return { maskedPhone: maskPhone(dto.phone), expiresInSeconds: 300 };
     }
 
     const result = await this.phoneOtpService.sendOtp({
@@ -271,9 +293,9 @@ if (dto.address) {
     };
   }
 
-  // ─── Login with OTP ───────────────────────────────────────────
+  // ─── Verify OTP and login ─────────────────────────────────────
   async loginWithOtp(
-    dto: CustomerOtpLoginDto,
+    dto: CustomerOtpLoginVerifyDto,
     deviceInfo: DeviceInfo,
   ): Promise<AuthResult> {
     const otpResult = await this.phoneOtpService.verifyOtp({
@@ -315,7 +337,57 @@ if (dto.address) {
     );
   }
 
-  // ─── Forgot Password: Request OTP ────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // PHONE VERIFICATION (guests + registered)
+  // ══════════════════════════════════════════════════════════════
+
+  async requestPhoneVerification(
+    dto: VerifyPhoneRequestDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ maskedPhone: string; expiresInSeconds: number }> {
+    const result = await this.phoneOtpService.sendOtp({
+      target: dto.phone,
+      purpose: 'VERIFY_PHONE',
+      ipAddress,
+      userAgent,
+    });
+
+    if (!result.success) {
+      throw new BadRequestException(result.message ?? 'Failed to send OTP');
+    }
+
+    return {
+      maskedPhone: result.maskedTarget,
+      expiresInSeconds: result.expiresInSeconds,
+    };
+  }
+
+  async confirmPhoneVerification(dto: VerifyPhoneConfirmDto): Promise<void> {
+    const otpResult = await this.phoneOtpService.verifyOtp({
+      target: dto.phone,
+      purpose: 'VERIFY_PHONE',
+      code: dto.code,
+      consume: true,
+    });
+
+    if (!otpResult.success) {
+      throw new UnauthorizedException(
+        otpResult.message ?? AUTH_ERROR.OTP_INVALID,
+      );
+    }
+
+    // Mark phone as verified for any customer with this phone
+    await this.prisma.customer.updateMany({
+      where: { phone: dto.phone, deletedAt: null },
+      data: { phoneVerified: true },
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // PASSWORD RESET
+  // ══════════════════════════════════════════════════════════════
+
   async requestPasswordReset(
     dto: ForgotPasswordDto,
     ipAddress?: string,
@@ -326,9 +398,9 @@ if (dto.address) {
       select: { id: true },
     });
 
-    // Don't reveal if account doesn't exist (prevent enumeration)
+    // Don't reveal if account doesn't exist
     if (!customer) {
-      return { maskedPhone: this.maskPhone(dto.phone), expiresInSeconds: 300 };
+      return { maskedPhone: maskPhone(dto.phone), expiresInSeconds: 300 };
     }
 
     const result = await this.phoneOtpService.sendOtp({
@@ -344,7 +416,6 @@ if (dto.address) {
     };
   }
 
-  // ─── Reset Password ────────────────────────────────────────────
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
     const otpResult = await this.phoneOtpService.verifyOtp({
       target: dto.phone,
@@ -364,9 +435,7 @@ if (dto.address) {
       select: { id: true },
     });
 
-    if (!customer) {
-      throw new NotFoundException(AUTH_ERROR.CUSTOMER_NOT_FOUND);
-    }
+    if (!customer) throw new NotFoundException(AUTH_ERROR.CUSTOMER_NOT_FOUND);
 
     const hashedPassword = await bcrypt.hash(
       dto.newPassword,
@@ -378,38 +447,14 @@ if (dto.address) {
       data: { password: hashedPassword },
     });
 
-    // Revoke all existing sessions (force re-login on all devices)
+    // Force re-login on all devices
     await this.tokenService.revokeAllOwnerTokens(
       'CUSTOMER',
       customer.id,
-      'PASSWORD_RESET',
+      'All_DEVICES',
     );
 
     this.logger.log(`Password reset for customer: ${dto.phone}`);
-  }
-
-  // ─── Get Customer Profile ─────────────────────────────────────
-  async getCustomerProfile(customerId: string) {
-    const customer = await this.prisma.customer.findFirst({
-      where: { id: customerId, deletedAt: null },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        phoneVerified: true,
-        email: true,
-        emailVerified: true,
-        isGuest: true,
-        isActive: true,
-        avatar: true,
-        lastLoginAt: true,
-        createdAt: true,
-      },
-    });
-
-    if (!customer) throw new NotFoundException(AUTH_ERROR.CUSTOMER_NOT_FOUND);
-    return customer;
   }
 
   // ─── Private helpers ──────────────────────────────────────────
@@ -418,7 +463,6 @@ if (dto.address) {
       where: { id: customerId },
       select: { loginAttempts: true },
     });
-
     const newAttempts = (customer?.loginAttempts ?? 0) + 1;
     const shouldLock = newAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS;
 
@@ -438,80 +482,4 @@ if (dto.address) {
       );
     }
   }
-
-  private maskPhone(phone: string): string {
-    if (phone.length < 7) return '****';
-    return `${phone.substring(0, 4)}****${phone.substring(phone.length - 3)}`;
-  }
-
-  async updateProfile(
-  customerId: string,
-  dto: UpdateCustomerProfileDto,
-): Promise<object> {
-  // If updating email, check it's not taken
-  if (dto.email) {
-    const emailTaken = await this.prisma.customer.findFirst({
-      where: {
-        email: dto.email,
-        id: { not: customerId },
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-    if (emailTaken) {
-      throw new ConflictException(AUTH_ERROR.CUSTOMER_EMAIL_TAKEN);
-    }
-  }
-
-  const updated = await this.prisma.customer.update({
-    where: { id: customerId },
-    data: {
-      ...(dto.firstName && { firstName: dto.firstName }),
-      ...(dto.lastName && { lastName: dto.lastName }),
-      ...(dto.email && { email: dto.email, emailVerified: false }),
-      ...(dto.avatar && { avatar: dto.avatar }),
-    },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      emailVerified: true,
-      phone: true,
-      avatar: true,
-    },
-  });
-
-  return updated;
-  }
-
-  async changePassword(customerId: string, dto: ChangePasswordDto): Promise<void> {
-  const customer = await this.prisma.customer.findFirst({
-    where: { id: customerId, deletedAt: null },
-    select: { id: true, password: true },
-  });
-
-  if (!customer || !customer.password) {
-    throw new BadRequestException('No password set on this account');
-  }
-
-  const valid = await bcrypt.compare(dto.currentPassword, customer.password);
-  if (!valid) {
-    throw new UnauthorizedException('Current password is incorrect');
-  }
-
-  const hashed = await bcrypt.hash(dto.newPassword, AUTH_CONFIG.BCRYPT_ROUNDS);
-
-  await this.prisma.customer.update({
-    where: { id: customerId },
-    data: { password: hashed },
-  });
-
-  // Revoke all other sessions — force re-login everywhere
-  await this.tokenService.revokeAllOwnerTokens(
-    'CUSTOMER',
-    customerId,
-    'PASSWORD_CHANGE',
-  );
-}
 }

@@ -1,7 +1,6 @@
-// src/address/dto/update-address.dto.ts
-
 import { IsString, IsBoolean, IsOptional, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class UpdateAddressDto {
   @ApiPropertyOptional()
@@ -49,6 +48,7 @@ export class UpdateAddressDto {
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  @Transform(({ value }) => value?.trim().toUpperCase())
   country?: string;
 
   @ApiPropertyOptional()

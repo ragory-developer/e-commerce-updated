@@ -50,3 +50,12 @@ export interface AuthResult {
   tokens: TokenPair;
   deviceDbId: string; // DB Device.id for reference
 }
+
+// ─── Registration Token Payload ───────────────────────────────
+// Issued after OTP verification, consumed during registration completion
+export interface RegistrationTokenPayload {
+  sub: string; // phone number
+  purpose: 'REGISTRATION';
+  iat?: number;
+  exp?: number;
+}

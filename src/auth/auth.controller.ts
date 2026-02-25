@@ -1,13 +1,7 @@
-// ─── src/auth/auth.controller.ts ─────────────────────────────
-// Add to existing imports at top of auth.controller.ts:
-import { Patch } from '@nestjs/common';
-import { UpdateCustomerProfileDto } from './dto';
-import { UserType } from '../common/decorators/user-type.decorator';
 import {
   Controller,
   Post,
   Get,
-  Patch,
   Delete,
   Body,
   Param,
@@ -21,16 +15,19 @@ import type { Request } from 'express';
 import { AdminAuthService } from './admin-auth.service';
 import { CustomerAuthService } from './customer-auth.service';
 import { TokenService } from './token.service';
+import { AdminService } from '../admin/admin.service';
+import { CustomerService } from '../customer/customer.service';
 
 import {
   AdminLoginDto,
-  CreateAdminDto,
-  UpdateAdminPermissionsDto,
-  UpdateAdminRoleDto,
   CustomerRequestOtpDto,
-  CustomerRegisterDto,
+  CustomerVerifyRegistrationOtpDto,
+  CustomerCompleteRegistrationDto,
   CustomerPasswordLoginDto,
-  CustomerOtpLoginDto,
+  CustomerOtpLoginRequestDto,
+  CustomerOtpLoginVerifyDto,
+  VerifyPhoneRequestDto,
+  VerifyPhoneConfirmDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   RefreshTokenDto,
@@ -39,10 +36,9 @@ import {
 
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
+import { UserType } from '../common/decorators/user-type.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import type { RequestUser } from './auth.types';
-import { AdminRole } from '@prisma/client';
 
 // ─── Helper: extract device info from request ─────────────────
 function extractDeviceInfo(req: Request, body: any) {
@@ -65,12 +61,10 @@ function generateFallbackDeviceId(req: Request): string {
   let hash = 5381;
   for (let i = 0; i < raw.length; i++) {
     hash = (hash << 5) + hash + raw.charCodeAt(i);
-    hash &= 0xffffffff; // Ensure 32-bit integer
+    hash &= 0xffffffff;
   }
   return `fallback-${Math.abs(hash).toString(16)}`;
 }
-
-// ─────────────────────────────────────────────────────────────
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -79,12 +73,14 @@ export class AuthController {
     private readonly adminAuthService: AdminAuthService,
     private readonly customerAuthService: CustomerAuthService,
     private readonly tokenService: TokenService,
+    private readonly adminService: AdminService,
+    private readonly customerService: CustomerService,
     private readonly prisma: PrismaService,
   ) {}
 
-  // ===========================================================
+  // ══════════════════════════════════════════════════════════════
   // ADMIN AUTH
-  // ===========================================================
+  // ══════════════════════════════════════════════════════════════
 
   @Public()
   @Post('admin/login')
@@ -92,8 +88,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Admin login with email + password' })
   async adminLogin(@Body() dto: AdminLoginDto, @Req() req: Request) {
     const deviceInfo = extractDeviceInfo(req, dto);
-    const result = await this.adminAuthService.login(dto, deviceInfo);
-
+    const result = await this.adminAuthService.AdminLogin(dto, deviceInfo);
     return {
       message: 'Login successful',
       data: {
@@ -104,108 +99,15 @@ export class AuthController {
     };
   }
 
-  @ApiBearerAuth('access-token')
-  @Roles(AdminRole.SUPERADMIN)
-  @Post('admin/create')
-  @ApiOperation({ summary: 'Create a new admin (SUPERADMIN only)' })
-  async createAdmin(
-    @Body() dto: CreateAdminDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    const admin = await this.adminAuthService.createAdmin(
-      dto,
-      user.id,
-      user.role!,
-    );
-    return {
-      message: 'Admin created successfully',
-      data: admin,
-    };
-  }
+  // ══════════════════════════════════════════════════════════════
+  // CUSTOMER REGISTRATION — 3-STEP FLOW
+  // ══════════════════════════════════════════════════════════════
 
-  @ApiBearerAuth('access-token')
-  @Roles(AdminRole.SUPERADMIN)
-  @Get('admin/list')
-  @ApiOperation({ summary: 'List all admins (SUPERADMIN only)' })
-  async listAdmins(@CurrentUser() user: RequestUser) {
-    const admins = await this.adminAuthService.listAdmins(user.role!);
-    return {
-      message: 'Admins retrieved',
-      data: admins,
-    };
-  }
-
-  @ApiBearerAuth('access-token')
-  @Roles(AdminRole.SUPERADMIN)
-  @Patch('admin/:id/permissions')
-  @ApiOperation({ summary: 'Update admin permissions (SUPERADMIN only)' })
-  // REPLACE THIS:
-  // WITH THIS:
-  async updateAdminPermissions(
-    @Param('id') id: string,
-    @Body() dto: UpdateAdminPermissionsDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    const result = await this.adminAuthService.updatePermissions(
-      id,
-      dto,
-      user.role!,
-    );
-    return { message: 'Permissions updated', data: result };
-  }
-
-  @ApiBearerAuth('access-token')
-  @Roles(AdminRole.SUPERADMIN)
-  @Patch('admin/:id/role')
-  @ApiOperation({ summary: 'Update admin role (SUPERADMIN only)' })
-  async updateAdminRole(
-    @Param('id') id: string,
-    @Body() dto: UpdateAdminRoleDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    await this.adminAuthService.updateRole(id, dto, user.role!);
-    return { message: 'Role updated', data: null };
-  }
-
-  @ApiBearerAuth('access-token')
-  @Roles(AdminRole.SUPERADMIN)
-  @Patch('admin/:id/disable')
-  @ApiOperation({ summary: 'Disable an admin account (SUPERADMIN only)' })
-  async disableAdmin(
-    @Param('id') id: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    await this.adminAuthService.setActiveStatus(id, false, user.role!, user.id);
-    return { message: 'Admin disabled', data: null };
-  }
-
-  @ApiBearerAuth('access-token')
-  @Roles(AdminRole.SUPERADMIN)
-  @Patch('admin/:id/enable')
-  @ApiOperation({ summary: 'Enable an admin account (SUPERADMIN only)' })
-  async enableAdmin(@Param('id') id: string, @CurrentUser() user: RequestUser) {
-    await this.adminAuthService.setActiveStatus(id, true, user.role!, user.id);
-    return { message: 'Admin enabled', data: null };
-  }
-
-  @ApiBearerAuth('access-token')
-  @Roles(AdminRole.SUPERADMIN)
-  @Delete('admin/:id')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Soft-delete an admin (SUPERADMIN only)' })
-  async deleteAdmin(@Param('id') id: string, @CurrentUser() user: RequestUser) {
-    await this.adminAuthService.deleteAdmin(id, user.role!, user.id);
-    return { message: 'Admin deleted', data: null };
-  }
-
-  // ===========================================================
-  // CUSTOMER AUTH
-  // ===========================================================
-
+  // Step 1 — Send OTP
   @Public()
-  @Post('customer/otp/request')
+  @Post('customer/register/request-otp')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request OTP for registration (step 1)' })
+  @ApiOperation({ summary: '[Step 1] Send OTP to phone for registration' })
   async requestRegistrationOtp(
     @Body() dto: CustomerRequestOtpDto,
     @Req() req: Request,
@@ -225,15 +127,40 @@ export class AuthController {
     };
   }
 
+  // Step 2 — Verify OTP → get registrationToken
   @Public()
-  @Post('customer/register')
+  @Post('customer/register/verify-otp')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Complete registration with OTP + profile (step 2)',
+    summary: '[Step 2] Verify OTP → returns registrationToken (15 min)',
   })
-  async register(@Body() dto: CustomerRegisterDto, @Req() req: Request) {
-    const deviceInfo = extractDeviceInfo(req, dto);
-    const result = await this.customerAuthService.register(dto, deviceInfo);
+  async verifyRegistrationOtp(@Body() dto: CustomerVerifyRegistrationOtpDto) {
+    const result = await this.customerAuthService.verifyRegistrationOtp(
+      dto.phone,
+      dto.code,
+    );
+    return {
+      message: 'OTP verified. Use registrationToken to complete registration.',
+      data: result,
+    };
+  }
 
+  // Step 3 — Complete registration with profile data
+  @Public()
+  @Post('customer/register/complete')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: '[Step 3] Complete registration with registrationToken + profile',
+  })
+  async completeRegistration(
+    @Body() dto: CustomerCompleteRegistrationDto,
+    @Req() req: Request,
+  ) {
+    const deviceInfo = extractDeviceInfo(req, dto);
+    const result = await this.customerAuthService.completeRegistration(
+      dto,
+      deviceInfo,
+    );
     return {
       message: 'Registration successful',
       data: {
@@ -243,6 +170,10 @@ export class AuthController {
       },
     };
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // CUSTOMER LOGIN
+  // ══════════════════════════════════════════════════════════════
 
   @Public()
   @Post('customer/login/password')
@@ -257,7 +188,6 @@ export class AuthController {
       dto,
       deviceInfo,
     );
-
     return {
       message: 'Login successful',
       data: {
@@ -271,9 +201,9 @@ export class AuthController {
   @Public()
   @Post('customer/login/otp/request')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request OTP for OTP-based login' })
+  @ApiOperation({ summary: '[Step 1] Request OTP for OTP-based login' })
   async requestLoginOtp(
-    @Body() dto: CustomerRequestOtpDto,
+    @Body() dto: CustomerOtpLoginRequestDto,
     @Req() req: Request,
   ) {
     const ip = req.socket.remoteAddress;
@@ -288,14 +218,13 @@ export class AuthController {
   @Public()
   @Post('customer/login/otp/verify')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify OTP and login' })
+  @ApiOperation({ summary: '[Step 2] Verify OTP and login' })
   async customerOtpLogin(
-    @Body() dto: CustomerOtpLoginDto,
+    @Body() dto: CustomerOtpLoginVerifyDto,
     @Req() req: Request,
   ) {
     const deviceInfo = extractDeviceInfo(req, dto);
     const result = await this.customerAuthService.loginWithOtp(dto, deviceInfo);
-
     return {
       message: 'Login successful',
       data: {
@@ -305,6 +234,44 @@ export class AuthController {
       },
     };
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // PHONE VERIFICATION (guests can verify their phone)
+  // ══════════════════════════════════════════════════════════════
+
+  @Public()
+  @Post('customer/verify-phone/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request phone verification OTP (for guests)' })
+  async requestPhoneVerification(
+    @Body() dto: VerifyPhoneRequestDto,
+    @Req() req: Request,
+  ) {
+    const ip = req.socket.remoteAddress;
+    const ua = req.headers['user-agent'];
+    const result = await this.customerAuthService.requestPhoneVerification(
+      dto,
+      ip,
+      ua,
+    );
+    return {
+      message: `Verification OTP sent to ${result.maskedPhone}`,
+      data: result,
+    };
+  }
+
+  @Public()
+  @Post('customer/verify-phone/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm phone verification OTP' })
+  async confirmPhoneVerification(@Body() dto: VerifyPhoneConfirmDto) {
+    await this.customerAuthService.confirmPhoneVerification(dto);
+    return { message: 'Phone verified successfully', data: null };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // PASSWORD RESET
+  // ══════════════════════════════════════════════════════════════
 
   @Public()
   @Post('customer/password/forgot')
@@ -333,24 +300,19 @@ export class AuthController {
     return { message: 'Password reset successfully', data: null };
   }
 
-  // ===========================================================
-  // SHARED ENDPOINTS (Admin + Customer)
-  // ===========================================================
+  // ══════════════════════════════════════════════════════════════
+  // SHARED — Token & Session Management
+  // ══════════════════════════════════════════════════════════════
 
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Rotate refresh token and get new token pair',
-    description:
-      'Send the refresh token. Old token is revoked, new pair is issued.',
-  })
+  @ApiOperation({ summary: 'Rotate refresh token → new token pair' })
   async refresh(@Body() dto: RefreshTokenDto) {
     const { tokens } = await this.tokenService.rotateRefreshToken(
       dto.refreshToken,
       dto.deviceId,
     );
-
     return {
       message: 'Token refreshed',
       data: {
@@ -364,9 +326,7 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Logout from this device (revoke current refresh token)',
-  })
+  @ApiOperation({ summary: 'Logout from current device' })
   async logout(@Body() dto: LogoutDto, @CurrentUser() user: RequestUser) {
     await this.tokenService.revokeToken(dto.refreshToken);
     await this.tokenService.revokeDeviceTokens(user.deviceId, 'LOGOUT');
@@ -381,25 +341,24 @@ export class AuthController {
     await this.tokenService.revokeAllOwnerTokens(
       user.type,
       user.id,
-      'ALL_DEVICES',
+      'All_DEVICES',
     );
     return { message: 'Logged out from all devices', data: null };
   }
 
+  // ─── GET /auth/me ─────────────────────────────────────────────
   @ApiBearerAuth('access-token')
   @Get('me')
   @ApiOperation({ summary: 'Get current authenticated user profile' })
   async getMe(@CurrentUser() user: RequestUser) {
     if (user.type === 'ADMIN') {
-      const profile = await this.adminAuthService.getAdminProfile(user.id);
+      const profile = await this.adminService.getProfile(user.id);
       return {
         message: 'Profile retrieved',
         data: { ...profile, userType: 'ADMIN' },
       };
     } else {
-      const profile = await this.customerAuthService.getCustomerProfile(
-        user.id,
-      );
+      const profile = await this.customerService.getProfile(user.id);
       return {
         message: 'Profile retrieved',
         data: { ...profile, userType: 'CUSTOMER' },
@@ -407,6 +366,7 @@ export class AuthController {
     }
   }
 
+  // ─── Device management ────────────────────────────────────────
   @ApiBearerAuth('access-token')
   @Get('devices')
   @ApiOperation({ summary: 'List all active devices for current user' })
@@ -442,41 +402,13 @@ export class AuthController {
     const ownerWhere =
       user.type === 'ADMIN' ? { adminId: user.id } : { customerId: user.id };
 
-    // Verify the device belongs to the caller
     const device = await this.prisma.device.findFirst({
       where: { id: deviceDbId, ...ownerWhere },
     });
 
-    if (!device) {
-      return { message: 'Device not found', data: null };
-    }
+    if (!device) return { message: 'Device not found', data: null };
 
     await this.tokenService.revokeDeviceTokens(deviceDbId, 'DEVICE_LOGOUT');
     return { message: 'Device logged out', data: null };
-  }
-
-  @ApiBearerAuth('access-token')
-  @UserType('CUSTOMER')
-  @Patch('customer/profile')
-  @ApiOperation({ summary: 'Update customer profile' })
-  async updateCustomerProfile(
-    @Body() dto: UpdateCustomerProfileDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    const updated = await this.customerAuthService.updateProfile(user.id, dto);
-    return { message: 'Profile updated', data: updated };
-  }
-
-  @ApiBearerAuth('access-token')
-  @UserType('CUSTOMER')
-  @Post('customer/change-password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Change password (must know current password)' })
-  async changePassword(
-    @Body() dto: ChangePasswordDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    await this.customerAuthService.changePassword(user.id, dto);
-    return { message: 'Password changed successfully', data: null };
   }
 }

@@ -1,5 +1,5 @@
 // ─── src/app.module.ts ───────────────────────────────────────
-import { TasksModule } from './tasks/tasks.module';
+
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -8,6 +8,10 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { OtpModule } from './otp/otp.module';
 import { AuthModule } from './auth/auth.module';
+import { AdminModule } from './admin/admin.module';
+import { CustomerModule } from './customer/customer.module';
+import { AddressModule } from './address/address.module';
+import { TasksModule } from './tasks/tasks.module';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -21,11 +25,10 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { UserTypeGuard } from './common/guards/user-type.guard';
-import { AddressModule } from './address/address.module';
 
 @Module({
   imports: [
-    // ─── Configuration ───────────────────────────────────────────
+    // ─── Configuration ────────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
@@ -33,18 +36,23 @@ import { AddressModule } from './address/address.module';
       validationOptions: { abortEarly: true },
     }),
 
-    // ─── Rate Limiting ────────────────────────────────────────────
+    // ─── Rate Limiting ─────────────────────────────────────────────
     ThrottlerModule.forRoot([
       { name: 'short', ttl: 1000, limit: 5 },
       { name: 'medium', ttl: 10000, limit: 20 },
       { name: 'long', ttl: 60000, limit: 100 },
     ]),
 
-    // ─── Core Modules ─────────────────────────────────────────────
-    TasksModule,
+    // ─── Core Infrastructure ───────────────────────────────────────
     PrismaModule,
     OtpModule,
+    TasksModule,
+
+    // ─── Feature Modules ───────────────────────────────────────────
+    // Auth must come before Admin/Customer (they import AuthModule for TokenService)
     AuthModule,
+    AdminModule,
+    CustomerModule,
     AddressModule,
   ],
 
@@ -53,44 +61,20 @@ import { AddressModule } from './address/address.module';
   providers: [
     AppService,
 
-    // ─── Global Exception Filter ──────────────────────────────────
-    {
-      provide: APP_FILTER,
-      useClass: GlobalExceptionFilter,
-    },
+    { provide: APP_FILTER, useClass: GlobalExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
 
-    // ─── Global Response Transformer ─────────────────────────────
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TransformInterceptor,
-    },
-
-    // ─── Global Guards (order matters!) ──────────────────────────
-    // 1. Rate Limiter  — reject abuse first
-    // 2. JWT Auth      — validate token, populate req.user
-    // 3. UserType      — check ADMIN vs CUSTOMER
-    // 4. Roles         — check admin role
-    // 5. Permissions   — check specific permissions
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: UserTypeGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: PermissionsGuard,
-    },
+    // Guard order matters:
+    // 1. Rate limiter  → reject abuse first
+    // 2. JWT auth      → validate token, populate req.user
+    // 3. UserType      → ADMIN vs CUSTOMER
+    // 4. Roles         → admin role check
+    // 5. Permissions   → fine-grained permission check
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: UserTypeGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
 export class AppModule {}

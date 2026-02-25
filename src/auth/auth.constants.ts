@@ -2,8 +2,8 @@
 
 export const AUTH_CONFIG = {
   // ─── JWT ──────────────────────────────────────────────────────
-  ACCESS_TOKEN_EXPIRES_IN: '15m',
-  REFRESH_TOKEN_EXPIRES_IN: '7d',
+  ACCESS_TOKEN_EXPIRES_IN: 15 * 60 * 1000, // 15 minutes in ms
+  REFRESH_TOKEN_EXPIRES_IN: 7,
   REFRESH_TOKEN_EXPIRES_MS: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
 
   // ─── Login Security ───────────────────────────────────────────
@@ -49,7 +49,12 @@ export const AUTH_ERROR = {
   // ─── OTP ──────────────────────────────────────────────────────
   OTP_REQUIRED: 'OTP verification is required',
   OTP_INVALID: 'Invalid OTP code',
+  OTP_REGISTRATION_TOKEN_INVALID:
+    'Registration token is invalid or expired. Please restart registration.',
 } as const;
 
 // JWT payload type identifier
 export const JWT_PAYLOAD_VERSION = 1;
+// Short-lived registration token: 15 minutes
+export const REGISTRATION_TOKEN_EXPIRES_IN = '15m';
+export const REGISTRATION_TOKEN_EXPIRES_MS = 15 * 60 * 1000;

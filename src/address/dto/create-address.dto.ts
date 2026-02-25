@@ -1,5 +1,3 @@
-// src/address/dto/create-address.dto.ts
-
 import {
   IsString,
   IsNotEmpty,
@@ -17,7 +15,7 @@ export class CreateAddressDto {
   @MaxLength(50)
   label?: string;
 
-  @ApiProperty({ example: '123 Main St' })
+  @ApiProperty({ example: '123 Main St, Apt 4B' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(191)
