@@ -1,0 +1,36 @@
+export declare const AUTH_CONFIG: {
+    readonly ACCESS_TOKEN_EXPIRES_IN: number;
+    readonly REFRESH_TOKEN_EXPIRES_IN: 7;
+    readonly REFRESH_TOKEN_EXPIRES_MS: number;
+    readonly MAX_LOGIN_ATTEMPTS: 5;
+    readonly LOCK_DURATION_MIN: 15;
+    readonly LOCK_DURATION_MS: number;
+    readonly BCRYPT_ROUNDS: 12;
+    readonly SUPER_ADMIN_EMAIL: string;
+    readonly SUPER_ADMIN_PASSWORD: string;
+    readonly SUPER_ADMIN_FIRST_NAME: string;
+    readonly SUPER_ADMIN_LAST_NAME: string;
+};
+export declare const AUTH_ERROR: {
+    readonly INVALID_CREDENTIALS: "Invalid credentials";
+    readonly ACCOUNT_DISABLED: "Account is disabled";
+    readonly ACCOUNT_LOCKED: "Account is temporarily locked due to too many failed login attempts";
+    readonly TOKEN_INVALID: "Token is invalid or expired";
+    readonly TOKEN_REVOKED: "Token has been revoked";
+    readonly REFRESH_TOKEN_REUSE: "Security alert: refresh token reuse detected. All sessions revoked";
+    readonly UNAUTHORIZED: "Unauthorized";
+    readonly ADMIN_NOT_FOUND: "Admin not found";
+    readonly ADMIN_EMAIL_TAKEN: "Email is already registered";
+    readonly ADMIN_INSUFFICIENT_ROLE: "Insufficient role to perform this action";
+    readonly CUSTOMER_NOT_FOUND: "Customer not found";
+    readonly CUSTOMER_PHONE_TAKEN: "Phone number is already registered";
+    readonly CUSTOMER_EMAIL_TAKEN: "Email is already registered";
+    readonly CUSTOMER_NOT_VERIFIED: "Phone number is not verified";
+    readonly CUSTOMER_IS_GUEST: "Please complete registration before logging in with password";
+    readonly OTP_REQUIRED: "OTP verification is required";
+    readonly OTP_INVALID: "Invalid OTP code";
+    readonly OTP_REGISTRATION_TOKEN_INVALID: "Registration token is invalid or expired. Please restart registration.";
+};
+export declare const JWT_PAYLOAD_VERSION = 1;
+export declare const REGISTRATION_TOKEN_EXPIRES_IN = "15m";
+export declare const REGISTRATION_TOKEN_EXPIRES_MS: number;
