@@ -36,7 +36,7 @@ import {
 
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { UserType } from '../common/decorators/user-type.decorator';
+// import { UserType } from '../common/decorators/user-type.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import type { RequestUser } from './auth.types';
 

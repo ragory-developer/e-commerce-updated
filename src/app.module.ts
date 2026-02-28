@@ -25,6 +25,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { UserTypeGuard } from './common/guards/user-type.guard';
+import { MediaController } from './media/media.controller';
+import { MediaService } from './media/media.service';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
@@ -54,9 +57,10 @@ import { UserTypeGuard } from './common/guards/user-type.guard';
     AdminModule,
     CustomerModule,
     AddressModule,
+    MediaModule,
   ],
 
-  controllers: [AppController],
+  controllers: [AppController, MediaController],
 
   providers: [
     AppService,
@@ -75,6 +79,7 @@ import { UserTypeGuard } from './common/guards/user-type.guard';
     { provide: APP_GUARD, useClass: UserTypeGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    MediaService,
   ],
 })
 export class AppModule {}
