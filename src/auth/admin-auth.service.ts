@@ -15,8 +15,8 @@ export class AdminAuthService {
     private readonly tokenService: TokenService,
   ) {}
 
-  // ! Admin Login
-  async AdminLogin(
+  // ✅ Admin Login (production safe)
+  async adminLogin(
     dto: AdminLoginDto,
     deviceInfo: DeviceInfo,
   ): Promise<AuthResult> {
@@ -34,11 +34,24 @@ export class AdminAuthService {
       },
     });
 
-    // ! same error for not-found and wrong password
-    if (!admin) {
+    // 🔒 Prevent timing attacks
+    const dummyHash =
+      '$2b$10$KbQiF2Xk5b9VYy8Ej3Z9UeZ5gVxF5D1ZxJHGtJwQ1xExampleDummyHash';
+
+    const hashToCompare = admin?.password ?? dummyHash;
+
+    const passwordValid = await bcrypt.compare(dto.password, hashToCompare);
+
+    // ❌ Same error for wrong email or wrong password
+    if (!admin || !passwordValid) {
+      if (admin) {
+        await this.incrementLoginAttempts(admin.id);
+      }
+
       throw new UnauthorizedException(AUTH_ERROR.INVALID_CREDENTIALS);
     }
 
+    // 🔐 Hard lock check
     if (admin.lockedUntil && admin.lockedUntil > new Date()) {
       throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_LOCKED);
     }
@@ -47,12 +60,7 @@ export class AdminAuthService {
       throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_DISABLED);
     }
 
-    const passwordValid = await bcrypt.compare(dto.password, admin.password);
-    if (!passwordValid) {
-      throw new UnauthorizedException(AUTH_ERROR.INVALID_CREDENTIALS);
-    }
-
-    // ! Reset on success Login
+    // ✅ Reset attempts after successful login
     await this.prisma.admin.update({
       where: { id: admin.id },
       data: {
@@ -72,9 +80,10 @@ export class AdminAuthService {
     );
   }
 
-  // ! seed super Admin
+  // ✅ Seed Super Admin
   async seedSuperAdmin(): Promise<void> {
     const email = process.env.SUPER_ADMIN_EMAIL;
+
     if (!email) {
       this.logger.warn(
         'SUPER_ADMIN_EMAIL not set, skipping super admin seeding',
@@ -93,6 +102,7 @@ export class AdminAuthService {
     }
 
     const { AdminPermission } = await import('@prisma/client');
+
     const hashedPassword = await bcrypt.hash(
       AUTH_CONFIG.SUPER_ADMIN_PASSWORD,
       AUTH_CONFIG.BCRYPT_ROUNDS,
@@ -113,12 +123,15 @@ export class AdminAuthService {
     this.logger.log(`Super admin seeded: ${email}`);
   }
 
+  // ✅ Increment login attempts safely
   private async incrementLoginAttempts(id: string): Promise<void> {
-    const admin = await this.prisma.admin.findFirst({
-      where: { id, isActive: true },
+    const admin = await this.prisma.admin.findUnique({
+      where: { id },
     });
 
-    const newAttempts = (admin?.loginAttempts ?? 0) + 1;
+    if (!admin) return;
+
+    const newAttempts = (admin.loginAttempts ?? 0) + 1;
     const shouldLock = newAttempts >= AUTH_CONFIG.MAX_LOGIN_ATTEMPTS;
 
     await this.prisma.admin.update({
@@ -127,9 +140,10 @@ export class AdminAuthService {
         loginAttempts: newAttempts,
         lockedUntil: shouldLock
           ? new Date(Date.now() + AUTH_CONFIG.LOCK_DURATION_MS)
-          : undefined,
+          : null,
       },
     });
+
     if (shouldLock) {
       this.logger.warn(
         `Admin ${id} locked due to too many failed login attempts`,
