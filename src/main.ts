@@ -49,7 +49,7 @@ async function bootstrap() {
 
   await app.listen(port);
 
-  logger.log(`🚀 Running on port ${port}`);
+  logger.log(`🚀 Running on the port ${port}`);
 }
 
 bootstrap().catch((err) => {
