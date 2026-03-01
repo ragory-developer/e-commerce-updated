@@ -64,7 +64,15 @@ async function bootstrap() {
     const config = new DocumentBuilder()
       .setTitle('E-commerce API')
       .setVersion('1.0')
-      .addBearerAuth()
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          in: 'header',
+        },
+        'access-token', // ← this name MUST match @ApiBearerAuth('access-token')
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, config);

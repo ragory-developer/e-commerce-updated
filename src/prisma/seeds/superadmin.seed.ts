@@ -1,6 +1,5 @@
-import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -15,7 +14,6 @@ async function main() {
 
   const hashed = await bcrypt.hash(password, saltRounds);
 
-  // Upsert so running the seed multiple times won't create duplicates
   const admin = await prisma.admin.upsert({
     where: { email },
     update: {
@@ -31,19 +29,20 @@ async function main() {
       lastName,
       email,
       password: hashed,
-      role: 'ADMIN',
+      role: 'SUPERADMIN',
+      permissions: [],
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     },
   });
 
-  console.log('Super admin seeded (upserted):', admin.email);
+  console.log('✅ Super admin seeded:', admin.email);
 }
 
 main()
   .catch((e) => {
-    console.error('Seed failed:', e);
+    console.error('❌ Seed failed:', e);
     process.exitCode = 1;
   })
   .finally(async () => {
