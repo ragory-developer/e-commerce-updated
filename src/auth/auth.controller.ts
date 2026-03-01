@@ -88,7 +88,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Admin login with email + password' })
   async adminLogin(@Body() dto: AdminLoginDto, @Req() req: Request) {
     const deviceInfo = extractDeviceInfo(req, dto);
-    const result = await this.adminAuthService.AdminLogin(dto, deviceInfo);
+    const result = await this.adminAuthService.adminLogin(dto, deviceInfo);
     return {
       message: 'Login successful',
       data: {
