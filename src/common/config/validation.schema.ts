@@ -38,4 +38,32 @@ export const validationSchema = Joi.object({
   SMS_API_KEY: Joi.string().optional(),
   SMS_SENDER_ID: Joi.string().optional(),
   SMS_BASE_URL: Joi.string().uri().optional(),
+
+  // ! local storage / media
+  STORAGE_DRIVER: Joi.string()
+    .valid('local', 'cloudinary')
+    .default('cloudinary'),
+  LOCAL_STORAGE_PATH: Joi.string().default('./storage/media'),
+  LOCAL_BASE_URL: Joi.string()
+    .uri()
+    .default('http://localhost:3001/uploads/media'),
+  MAX_UPLOAD_SIZE_MB: Joi.number().min(1).default(10),
+
+  // ! cloudinary optional unless storage driver
+  CLOUDINARY_URL: Joi.string().optional(),
+  CLOUDINARY_CLOUD_NAME: Joi.when('STORAGE_DRIVER', {
+    is: 'cloudinary',
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional(),
+  }),
+  CLOUDINARY_API_KEY: Joi.when('STORAGE_DRIVER', {
+    is: 'cloudinary',
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional(),
+  }),
+  CLOUDINARY_API_SECRET: Joi.when('STORAGE_DRIVER', {
+    is: 'cloudinary',
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional(),
+  }),
 });

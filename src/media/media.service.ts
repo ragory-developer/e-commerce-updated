@@ -53,11 +53,17 @@ export class MediaService {
 
     // Initialize Cloudinary if selected
     if (this.storageDriver === 'cloudinary') {
-      cloudinary.config({
-        cloud_name: this.configService.getOrThrow('CLOUDINARY_CLOUD_NAME'),
-        api_key: this.configService.getOrThrow('CLOUDINARY_API_KEY'),
-        api_secret: this.configService.getOrThrow('CLOUDINARY_API_SECRET'),
-      });
+      const cloudinaryUrl = this.configService.get<string>('CLOUDINARY_URL');
+      if (cloudinaryUrl) {
+        // If CLOUDINARY_URL exists, let cloudinary parse it
+        cloudinary.config({ cloudinary_url: cloudinaryUrl });
+      } else {
+        cloudinary.config({
+          cloud_name: this.configService.getOrThrow('CLOUDINARY_CLOUD_NAME'),
+          api_key: this.configService.getOrThrow('CLOUDINARY_API_KEY'),
+          api_secret: this.configService.getOrThrow('CLOUDINARY_API_SECRET'),
+        });
+      }
     }
   }
 
