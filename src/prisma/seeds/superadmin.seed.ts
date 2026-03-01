@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   const email = process.env.SUPER_ADMIN_EMAIL || 'admin@example.com';
-  const password = process.env.SUPER_ADMIN_PASSWORD || 'ChangeMe123!';
+  const password = process.env.SUPER_ADMIN_PASSWORD || 'admin@example.com';
   const firstName = process.env.SUPER_ADMIN_FIRST_NAME || 'Super';
   const lastName = process.env.SUPER_ADMIN_LAST_NAME || 'Admin';
   const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
@@ -27,12 +27,11 @@ async function main() {
       updatedAt: new Date(),
     },
     create: {
-      id: undefined as unknown as string, // Prisma will generate cuid() automatically if omitted
       firstName,
       lastName,
       email,
       password: hashed,
-      role: 'ADMIN', // matches your Prisma AdminRole enum
+      role: 'ADMIN',
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),

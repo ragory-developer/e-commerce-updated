@@ -27,7 +27,7 @@
     "prisma:migrate": "npm run prisma:build && prisma migrate dev",
     "prisma:deploy": "npm run prisma:build && prisma migrate deploy",
     "prisma:reset": "npm run prisma:build && prisma migrate reset",
-    "seed:superadmin": "ts-node src/prisma/seeds/superadmin.seed.ts",
+    "seed:superadmin": "node -r dotenv/config src/prisma/seeds/superadmin.seed.js",
     "railway:start": "npm run prisma:deploy && node dist/src/main.js"
   },
   "dependencies": {
