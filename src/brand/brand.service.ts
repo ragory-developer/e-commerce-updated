@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBrandDto, UpdateBrandDto, ListBrandsDto } from './dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class BrandService {
@@ -46,20 +47,10 @@ export class BrandService {
         slug: dto.slug,
         description: dto.description ?? null,
         image: dto.image ?? null,
-        translations: dto.translations ?? null,
-        seo: dto.seo ?? null,
-        createdBy,
-      },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        description: true,
-        image: true,
-        translations: true,
-        seo: true,
-        createdAt: true,
-        updatedAt: true,
+        translations:
+          dto.translations !== undefined ? dto.translations : Prisma.JsonNull,
+        seo: dto.seo !== undefined ? { ...dto.seo } : Prisma.JsonNull,
+        createdBy: createdBy,
       },
     });
 
@@ -285,24 +276,19 @@ export class BrandService {
     const brand = await this.prisma.brand.update({
       where: { id },
       data: {
-        ...(dto.name && { name: dto.name }),
-        ...(dto.slug && { slug: dto.slug }),
-        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.slug !== undefined && { slug: dto.slug }),
+        ...(dto.description !== undefined && {
+          description: dto.description,
+        }),
         ...(dto.image !== undefined && { image: dto.image }),
-        ...(dto.translations !== undefined && { translations: dto.translations }),
-        ...(dto.seo !== undefined && { seo: dto.seo }),
-        updatedBy,
-      },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        description: true,
-        image: true,
-        translations: true,
-        seo: true,
-        createdAt: true,
-        updatedAt: true,
+        ...(dto.translations !== undefined && {
+          translations: dto.translations,
+        }),
+        ...(dto.seo !== undefined && {
+          seo: dto.seo ? { ...dto.seo } : Prisma.JsonNull,
+        }),
+        updatedBy: updatedBy,
       },
     });
 
