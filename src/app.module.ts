@@ -28,6 +28,8 @@ import { UserTypeGuard } from './common/guards/user-type.guard';
 import { MediaController } from './media/media.controller';
 import { MediaService } from './media/media.service';
 import { MediaModule } from './media/media.module';
+import { BrandController } from './brand/brand.controller';
+import { BrandModule } from './brand/brand.module';
 
 @Module({
   imports: [
@@ -58,9 +60,10 @@ import { MediaModule } from './media/media.module';
     CustomerModule,
     AddressModule,
     MediaModule,
+    BrandModule,
   ],
 
-  controllers: [AppController, MediaController],
+  controllers: [AppController, MediaController, BrandController],
 
   providers: [
     AppService,
