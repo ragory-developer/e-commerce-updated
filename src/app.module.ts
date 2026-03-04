@@ -30,6 +30,7 @@ import { MediaService } from './media/media.service';
 import { MediaModule } from './media/media.module';
 import { BrandController } from './brand/brand.controller';
 import { BrandModule } from './brand/brand.module';
+import { TagModule } from './tag/tag.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { BrandModule } from './brand/brand.module';
     AddressModule,
     MediaModule,
     BrandModule,
+    TagModule,
   ],
 
   controllers: [AppController, MediaController, BrandController],
