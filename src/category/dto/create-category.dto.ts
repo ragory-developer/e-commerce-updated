@@ -91,7 +91,7 @@ export class CreateCategoryDto {
     type: Object,
     description: 'Translations stored as raw JSON',
     example: {
-      bn: { name: 'ইলেকট্রনিক্স', description: 'সকল ইলেকট্রনিক পণ্য' },
+      bn: { name: 'ইলেকট্রনিক্স', description: 'ইলেকট্রনিক পণ্য' },
     },
   })
   @IsOptional()
