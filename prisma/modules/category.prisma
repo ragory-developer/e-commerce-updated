@@ -15,6 +15,9 @@ model Category {
   position Int @default(0)
   depth    Int @default(0)
 
+  path     String? @db.Text
+  pathIds  Json?   @db.JsonB
+
   translations Json? @db.JsonB
   seo          Json? @db.JsonB
 
