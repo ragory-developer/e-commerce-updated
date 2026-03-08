@@ -31,6 +31,7 @@ import { MediaModule } from './media/media.module';
 import { BrandController } from './brand/brand.controller';
 import { BrandModule } from './brand/brand.module';
 import { TagModule } from './tag/tag.module';
+import { CategoryModule } from './category/category.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { TagModule } from './tag/tag.module';
     MediaModule,
     BrandModule,
     TagModule,
+    CategoryModule,
   ],
 
   controllers: [AppController, MediaController, BrandController],
