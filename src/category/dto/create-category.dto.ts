@@ -6,6 +6,8 @@ import {
   IsObject,
   IsBoolean,
   ValidateNested,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
@@ -59,6 +61,7 @@ export class CreateCategoryDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   parentId?: string;
 
   @ApiPropertyOptional({
@@ -67,6 +70,7 @@ export class CreateCategoryDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   image?: string;
 
   @ApiPropertyOptional({
@@ -75,11 +79,14 @@ export class CreateCategoryDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   icon?: string;
 
   @ApiPropertyOptional({ example: 0, description: 'Display order position' })
   @IsOptional()
-  @IsString()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
   position?: number;
 
   @ApiPropertyOptional({ example: true })
@@ -91,7 +98,7 @@ export class CreateCategoryDto {
     type: Object,
     description: 'Translations stored as raw JSON',
     example: {
-      bn: { name: 'ইলেকট্রনিক্স', description: 'ইলেকট্রনিক পণ্য' },
+      bn: { name: 'ইলেকট্রনিক্স', description: 'সকল ইলেকট্রনিক পণ্য' },
     },
   })
   @IsOptional()
