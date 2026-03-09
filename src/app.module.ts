@@ -32,6 +32,11 @@ import { BrandController } from './brand/brand.controller';
 import { BrandModule } from './brand/brand.module';
 import { TagModule } from './tag/tag.module';
 import { CategoryModule } from './category/category.module';
+import { AttributeSetController } from './attribute/attribute-set.controller';
+import { AttributeSetService } from './attribute/attribute-set.service';
+import { AttributeController } from './attribute/attribute.controller';
+import { AttributeService } from './attribute/attribute.service';
+import { AttributeModule } from './attribute/attribute.module';
 
 @Module({
   imports: [
@@ -65,9 +70,10 @@ import { CategoryModule } from './category/category.module';
     BrandModule,
     TagModule,
     CategoryModule,
+    AttributeModule,
   ],
 
-  controllers: [AppController, MediaController, BrandController],
+  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController],
 
   providers: [
     AppService,
@@ -87,6 +93,8 @@ import { CategoryModule } from './category/category.module';
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     MediaService,
+    AttributeSetService,
+    AttributeService,
   ],
 })
 export class AppModule {}
