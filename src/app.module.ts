@@ -37,6 +37,11 @@ import { AttributeSetService } from './attribute/attribute-set.service';
 import { AttributeController } from './attribute/attribute.controller';
 import { AttributeService } from './attribute/attribute.service';
 import { AttributeModule } from './attribute/attribute.module';
+import { FlashSaleController } from './flash-sale/flash-sale.controller';
+import { FlashSaleModule } from './flash-sale/flash-sale.module';
+import { CouponController } from './coupon/coupon.controller';
+import { CouponService } from './coupon/coupon.service';
+import { CouponModule } from './coupon/coupon.module';
 
 @Module({
   imports: [
@@ -71,9 +76,11 @@ import { AttributeModule } from './attribute/attribute.module';
     TagModule,
     CategoryModule,
     AttributeModule,
+    FlashSaleModule,
+    CouponModule,
   ],
 
-  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController],
+  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController, FlashSaleController, CouponController],
 
   providers: [
     AppService,
@@ -95,6 +102,7 @@ import { AttributeModule } from './attribute/attribute.module';
     MediaService,
     AttributeSetService,
     AttributeService,
+    CouponService,
   ],
 })
 export class AppModule {}
