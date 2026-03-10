@@ -60,6 +60,7 @@ enum VariationType {
   TEXT
   COLOR
   IMAGE
+  DROPDOWN
 }
 
 enum PublishStatus {
