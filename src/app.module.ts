@@ -42,6 +42,12 @@ import { FlashSaleModule } from './flash-sale/flash-sale.module';
 import { CouponController } from './coupon/coupon.controller';
 import { CouponService } from './coupon/coupon.service';
 import { CouponModule } from './coupon/coupon.module';
+import { VariationModule } from './variation/variation.module';
+import { VariationController } from './variation/variation.controller';
+import { VariationService } from './variation/variation.service';
+import { ProductModule } from './product/product.module';
+import { ProductController } from './product/product.controller';
+import { ProductService } from './product/product.service';
 
 @Module({
   imports: [
@@ -78,9 +84,11 @@ import { CouponModule } from './coupon/coupon.module';
     AttributeModule,
     FlashSaleModule,
     CouponModule,
+    VariationModule,
+    ProductModule,
   ],
 
-  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController, FlashSaleController, CouponController],
+  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController, FlashSaleController, CouponController, VariationController, ProductController],
 
   providers: [
     AppService,
@@ -103,6 +111,8 @@ import { CouponModule } from './coupon/coupon.module';
     AttributeSetService,
     AttributeService,
     CouponService,
+    VariationService,
+    ProductService,
   ],
 })
 export class AppModule {}
