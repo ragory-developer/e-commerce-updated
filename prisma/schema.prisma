@@ -936,6 +936,17 @@ enum OptionPriceType {
 }
 
 
+// ========== Transaction ==========
+enum TransactionStatus {
+  INITIATED     // Payment flow started
+  PENDING       // Waiting for gateway response
+  COMPLETED     // Payment successful
+  FAILED        // Payment failed
+  REFUNDED      // Full refund processed
+  PARTIALLY_REFUNDED // Partial refund processed
+}
+
+
 // ========================================
 // MODULE:  FILE.PRISMA
 // ========================================
@@ -1040,16 +1051,23 @@ model FlashSaleProduct {
 // MODULE:  INVENTORY_LOG.PRISMA
 // ========================================
 
+// ─── Inventory Log (Append-Only Audit Trail) ─────────────────
+// Every stock change is recorded here. NEVER delete or update rows.
+// This is your single source of truth for stock movement history.
+
 enum InventoryReason {
-  ORDER_PLACED       
-  ORDER_CANCELED     
-  ORDER_REFUNDED     
-  MANUAL_ADJUSTMENT  
-  RESTOCK            
-  DAMAGED            
-  RETURNED           
-  RESERVED           
-  RESERVATION_RELEASED 
+  INITIAL_STOCK          // Product/variant created with opening stock
+  ORDER_PLACED           // Stock deducted when order placed (COD)
+  ORDER_RESERVED         // Stock reserved for online payment
+  ORDER_CANCELED         // Stock restored on full order cancel
+  ORDER_ITEM_CANCELED    // Stock restored on partial item cancel
+  ORDER_REFUNDED         // Stock restored on refund
+  MANUAL_ADJUSTMENT      // Admin manually corrected stock
+  RESTOCK                // New stock received from supplier
+  DAMAGED                // Stock written off as damaged
+  RETURNED               // Customer return (stock restored)
+  RESERVATION_RELEASED   // Expired/failed payment reservation released
+  RESERVATION_CONVERTED  // Reservation confirmed → actual deduction
 }
 
 model InventoryLog {
@@ -1059,19 +1077,29 @@ model InventoryLog {
   productVariantId String? @map("product_variant_id")
   sku              String? @db.VarChar(100)
 
+  // Link to triggering order (null for manual adjustments, restocks)
+  orderId String? @map("order_id")
+
   reason   InventoryReason
-  quantity Int
+  quantity Int               // positive = stock added, negative = stock removed
 
   stockBefore Int @map("stock_before")
   stockAfter  Int @map("stock_after")
 
+  // Who triggered this change
+  createdBy String? @map("created_by") // adminId, customerId, or "system"
+
+  // Extra context: { "note": "Damaged in warehouse", "batchId": "B-001" }
   metadata Json? @db.JsonB
 
+  // IMMUTABLE — no updatedAt
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([productId])
   @@index([productVariantId])
+  @@index([orderId])
   @@index([reason])
+  @@index([createdBy])
   @@index([createdAt])
   @@map("inventory_logs")
 }
@@ -1303,7 +1331,6 @@ model Order {
   customerLastName  String  @map("customer_last_name") @db.VarChar(191)
 
   billingAddress Json @map("billing_address") @db.JsonB
-
   shippingAddress Json @map("shipping_address") @db.JsonB
 
   subTotal     Decimal @map("sub_total") @db.Decimal(18, 4)
@@ -1316,14 +1343,17 @@ model Order {
   paymentMethod     PaymentMethod   @map("payment_method")
   trackingReference String?         @map("tracking_reference") @db.Text
 
-  couponId   String? @map("coupon_id")
-  couponCode String? @map("coupon_code") @db.VarChar(191)
+  couponId            String?             @map("coupon_id")
+  couponCode          String?             @map("coupon_code") @db.VarChar(191)
+  couponDiscountType  CouponDiscountType? @map("coupon_discount_type")
+  couponDiscountValue Decimal?            @map("coupon_discount_value") @db.Decimal(18, 4)
 
   currency     String  @db.VarChar(10)
   currencyRate Decimal @map("currency_rate") @db.Decimal(18, 4)
 
   status OrderStatus @default(PENDING)
 
+  // Admin/customer notes
   notes Json? @db.JsonB
 
   locale    String  @db.VarChar(10)
@@ -2180,20 +2210,24 @@ model ShippingRate {
 // ========================================
 
 enum ReservationStatus {
-  ACTIVE
-  CONVERTED
-  EXPIRED
-  CANCELED
+  ACTIVE      // Currently holding stock
+  CONVERTED   // Payment succeeded → stock permanently deducted
+  EXPIRED     // TTL expired → stock released by cron
+  CANCELED    // User canceled or payment failed → stock released
 }
 
 model StockReservation {
   id String @id @default(cuid())
 
+  // Who owns this reservation
+  customerId String? @map("customer_id")
+  sessionId  String? @map("session_id")
+
   productId        String  @map("product_id")
   productVariantId String? @map("product_variant_id")
 
-  userId    String? @map("user_id")
-  sessionId String? @map("session_id")
+  // Link to order once created
+  orderId String? @map("order_id")
 
   qty    Int
   status ReservationStatus @default(ACTIVE)
@@ -2208,7 +2242,7 @@ model StockReservation {
 
   @@index([productId])
   @@index([productVariantId])
-  @@index([userId])
+  // @@index([userId])
   @@index([sessionId])
   @@index([status])
   @@index([expiresAt])
@@ -2326,11 +2360,16 @@ model Transaction {
 
   transactionId String        @map("transaction_id") @db.VarChar(191)
   paymentMethod PaymentMethod @map("payment_method")
+  status        TransactionStatus @default(INITIATED)
   amount        Decimal       @db.Decimal(18, 4)
   currency      String        @db.VarChar(10)
 
   gatewayResponse Json? @map("gateway_response") @db.JsonB
   refunds         Json? @db.JsonB
+
+  paidAt     DateTime? @map("paid_at")
+  failedAt   DateTime? @map("failed_at")
+  refundedAt DateTime? @map("refunded_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2343,6 +2382,7 @@ model Transaction {
 
   @@index([transactionId])
   @@index([paymentMethod])
+  @@index([status])
   @@index([deletedAt])
   @@index([createdAt])
   @@map("transactions")
