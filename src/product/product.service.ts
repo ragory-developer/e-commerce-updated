@@ -34,7 +34,7 @@ function toDecimal(value: number | undefined | null): Prisma.Decimal | null {
   return new Prisma.Decimal(value);
 }
 
-// Full product include for reads
+// ─── Full product include for reads ───────────────────────────
 const PRODUCT_FULL_INCLUDE = {
   brand: { select: { id: true, name: true, slug: true } },
   taxClass: { select: { id: true, name: true } },
@@ -97,6 +97,67 @@ const PRODUCT_FULL_INCLUDE = {
   },
 };
 
+// ─── Enhanced summary select for list mode ────────────────────
+const PRODUCT_SUMMARY_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  description: true,
+  shortDescription: true,
+  sku: true,
+  price: true,
+  specialPrice: true,
+  specialPriceType: true,
+  specialPriceStart: true,
+  specialPriceEnd: true,
+  images: true,
+  inStock: true,
+  isActive: true,
+  newFrom: true,
+  newTo: true,
+  viewed: true,
+  seo: true,
+  createdAt: true,
+  updatedAt: true,
+  brand: { select: { id: true, name: true, slug: true } },
+  categories: {
+    select: {
+      category: { select: { id: true, name: true, slug: true } },
+    },
+  },
+  tags: {
+    select: {
+      tag: { select: { id: true, name: true, slug: true } },
+    },
+  },
+  variants: {
+    where: { deletedAt: null },
+    select: {
+      id: true,
+      uid: true,
+      name: true,
+      sku: true,
+      price: true,
+      specialPrice: true,
+      specialPriceType: true,
+      specialPriceStart: true,
+      specialPriceEnd: true,
+      inStock: true,
+      isDefault: true,
+      isActive: true,
+      position: true,
+      qty: true,
+    },
+    orderBy: { position: 'asc' as const },
+  },
+  _count: {
+    select: {
+      variants: { where: { deletedAt: null } },
+      categories: true,
+    },
+  },
+};
+
 @Injectable()
 export class ProductService {
   private readonly logger = new Logger(ProductService.name);
@@ -125,9 +186,54 @@ export class ProductService {
     }
   }
 
+  // ─── Helper: Build sort order from query param ──────────────
+  private buildOrderBy(
+    sortBy?: string,
+  ): Prisma.ProductOrderByWithRelationInput {
+    switch (sortBy) {
+      case 'oldest':
+        return { createdAt: 'asc' };
+      case 'price_asc':
+        return { price: 'asc' };
+      case 'price_desc':
+        return { price: 'desc' };
+      case 'name_asc':
+        return { name: 'asc' };
+      case 'name_desc':
+        return { name: 'desc' };
+      case 'newest':
+      default:
+        return { createdAt: 'desc' };
+    }
+  }
+
+  // ─── Helper: Attach media to a single product ───────────────
+  private async attachMedia(product: any): Promise<any> {
+    const media = await this.mediaService.getEntityMedia({
+      entityType: 'Product',
+      entityId: product.id,
+    });
+
+    const variantsWithMedia = await Promise.all(
+      (product.variants || []).map(async (variant: any) => {
+        const variantMedia = await this.mediaService.getEntityMedia({
+          entityType: 'ProductVariant',
+          entityId: variant.id,
+        });
+        return { ...variant, media: variantMedia };
+      }),
+    );
+
+    return {
+      ...product,
+      media,
+      variants: variantsWithMedia,
+    };
+  }
+
   // ══════════════════════════════════════════════════════════════
   // CREATE PRODUCT
-  // ═════════════════════════��════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════
   async create(dto: CreateProductDto, createdBy: string) {
     const slug = await this.generateUniqueSlug(dto.name);
     const hasVariants = !!(dto.variants && dto.variants.length > 0);
@@ -475,7 +581,7 @@ export class ProductService {
   }
 
   // ══════════════════════════════════════════════════════════════
-  // LIST PRODUCTS
+  // LIST PRODUCTS (supports summary & detail modes)
   // ══════════════════════════════════════════════════════════════
   async findAll(dto: ListProductsDto) {
     const where: Prisma.ProductWhereInput = {
@@ -488,32 +594,77 @@ export class ProductService {
       }),
       ...(dto.brandId && { brandId: dto.brandId }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      ...(dto.inStock !== undefined && { inStock: dto.inStock }),
       ...(dto.categoryId && {
         categories: { some: { categoryId: dto.categoryId } },
       }),
+      ...(dto.tagId && {
+        tags: { some: { tagId: dto.tagId } },
+      }),
+      // Price range filter
+      ...((dto.priceMin !== undefined || dto.priceMax !== undefined) && {
+        OR: [
+          // Match products with direct price
+          {
+            price: {
+              ...(dto.priceMin !== undefined && { gte: dto.priceMin }),
+              ...(dto.priceMax !== undefined && { lte: dto.priceMax }),
+            },
+          },
+          // Match products whose variants fall in the price range
+          {
+            variants: {
+              some: {
+                deletedAt: null,
+                price: {
+                  ...(dto.priceMin !== undefined && { gte: dto.priceMin }),
+                  ...(dto.priceMax !== undefined && { lte: dto.priceMax }),
+                },
+              },
+            },
+          },
+        ],
+      }),
     };
 
+    const orderBy = this.buildOrderBy(dto.sortBy);
+
+    // ─── DETAIL MODE: same shape as findOne ───────────────────
+    if (dto.detail) {
+      const [products, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where,
+          include: PRODUCT_FULL_INCLUDE,
+          orderBy,
+          skip: dto.skip,
+          take: dto.take,
+        }),
+        this.prisma.product.count({ where }),
+      ]);
+
+      // Attach media to each product (same as findOne)
+      const data = await Promise.all(
+        products.map((product) => this.attachMedia(product)),
+      );
+
+      return {
+        data,
+        total,
+        meta: {
+          skip: dto.skip,
+          take: dto.take,
+          page: Math.floor(dto.skip / dto.take) + 1,
+          pageCount: Math.ceil(total / dto.take) || 1,
+        },
+      };
+    }
+
+    // ─── SUMMARY MODE (default): enhanced lightweight list ────
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          sku: true,
-          price: true,
-          images: true,
-          isActive: true,
-          createdAt: true,
-          brand: { select: { id: true, name: true } },
-          _count: {
-            select: {
-              variants: { where: { deletedAt: null } },
-              categories: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
+        select: PRODUCT_SUMMARY_SELECT,
+        orderBy,
         skip: dto.skip,
         take: dto.take,
       }),
@@ -533,7 +684,7 @@ export class ProductService {
   }
 
   // ══════════════════════════════════════════════════════════════
-  // GET SINGLE PRODUCT (includes media from EntityMedia)
+  // GET SINGLE PRODUCT BY ID (includes media from EntityMedia)
   // ══════════════════════════════════════════════════════════════
   async findOne(id: string) {
     const product = await this.prisma.product.findFirst({
@@ -545,28 +696,57 @@ export class ProductService {
       throw new NotFoundException('Product not found');
     }
 
-    // Fetch media via EntityMedia
-    const media = await this.mediaService.getEntityMedia({
-      entityType: 'Product',
-      entityId: id,
+    // Increment view count (fire and forget)
+    this.prisma.product
+      .update({
+        where: { id },
+        data: { viewed: { increment: 1 } },
+      })
+      .catch(() => {});
+
+    return this.attachMedia(product);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // GET SINGLE PRODUCT BY SLUG (for frontend SEO-friendly URLs)
+  // ══════════════════════════════════════════════════════════════
+  async findBySlug(slug: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { slug, deletedAt: null },
+      include: PRODUCT_FULL_INCLUDE,
     });
 
-    // Fetch variant media too
-    const variantsWithMedia = await Promise.all(
-      (product.variants || []).map(async (variant) => {
-        const variantMedia = await this.mediaService.getEntityMedia({
-          entityType: 'ProductVariant',
-          entityId: variant.id,
-        });
-        return { ...variant, media: variantMedia };
-      }),
-    );
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
 
-    return {
-      ...product,
-      media,
-      variants: variantsWithMedia,
-    };
+    // Increment view count (fire and forget)
+    this.prisma.product
+      .update({
+        where: { id: product.id },
+        data: { viewed: { increment: 1 } },
+      })
+      .catch(() => {});
+
+    return this.attachMedia(product);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // GET PRODUCTS BY CATEGORY SLUG (for storefront category pages)
+  // ══════════════════════════════════════════════════════════════
+  async findByCategorySlug(categorySlug: string, dto: ListProductsDto) {
+    const category = await this.prisma.category.findFirst({
+      where: { slug: categorySlug, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    // Override categoryId in dto and delegate to findAll
+    dto.categoryId = category.id;
+    return this.findAll(dto);
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -798,7 +978,7 @@ export class ProductService {
   }
 
   // ══════════════════════════════════════════════════════════════
-  // SEARCH PRODUCTS
+  // SEARCH PRODUCTS (for linked product dropdowns)
   // ══════════════════════════════════════════════════════════════
   async search(query: string) {
     if (!query || query.length < 2) return [];

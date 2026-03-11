@@ -58,7 +58,12 @@ export class ProductController {
   // ─── LIST ───────────────────────────────────────────────────
   @Get()
   @Public()
-  @ApiOperation({ summary: 'List products with pagination and filters' })
+  @ApiOperation({
+    summary: 'List products with pagination, filters, and optional full detail',
+    description:
+      'Use ?detail=true to get full product data (same as GET /products/:id). ' +
+      'Default returns an enhanced summary with categories, tags, variants, and pricing.',
+  })
   async findAll(@Query() dto: ListProductsDto) {
     const result = await this.productService.findAll(dto);
     return {
@@ -77,6 +82,44 @@ export class ProductController {
   async search(@Query('q') q: string) {
     const data = await this.productService.search(q);
     return { message: 'Search results', data };
+  }
+
+  // ─── GET BY SLUG (for frontend SEO-friendly URLs) ───────────
+  @Get('slug/:slug')
+  @Public()
+  @ApiParam({ name: 'slug', description: 'Product slug (URL-friendly name)' })
+  @ApiOperation({
+    summary: 'Get a single product by slug with all relations',
+    description:
+      'Use this for frontend product detail pages. Returns full product ' +
+      'data including media, variants, categories, tags, attributes, etc.',
+  })
+  async findBySlug(@Param('slug') slug: string) {
+    const data = await this.productService.findBySlug(slug);
+    return { message: 'Product retrieved successfully', data };
+  }
+
+  // ─── GET BY CATEGORY SLUG (for storefront category pages) ───
+  @Get('category/:slug')
+  @Public()
+  @ApiParam({ name: 'slug', description: 'Category slug' })
+  @ApiOperation({
+    summary: 'Get products by category slug with pagination and filters',
+    description:
+      'Use this for storefront category pages. Supports all filters ' +
+      'including ?detail=true for full product data.',
+  })
+  async findByCategorySlug(
+    @Param('slug') slug: string,
+    @Query() dto: ListProductsDto,
+  ) {
+    const result = await this.productService.findByCategorySlug(slug, dto);
+    return {
+      message: 'Products retrieved successfully',
+      data: result.data,
+      meta: result.meta,
+      total: result.total,
+    };
   }
 
   // ─── GET ONE ────────────────────────────────────────────────
