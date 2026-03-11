@@ -146,3 +146,14 @@ enum OptionPriceType {
   FIXED
   PERCENT
 }
+
+
+// ========== Transaction ==========
+enum TransactionStatus {
+  INITIATED     // Payment flow started
+  PENDING       // Waiting for gateway response
+  COMPLETED     // Payment successful
+  FAILED        // Payment failed
+  REFUNDED      // Full refund processed
+  PARTIALLY_REFUNDED // Partial refund processed
+}

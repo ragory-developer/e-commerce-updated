@@ -45,6 +45,8 @@ import { CouponModule } from './coupon/coupon.module';
 import { VariationModule } from './variation/variation.module';
 import { ProductController } from './product/product.controller';
 import { ProductModule } from './product/product.module';
+import { TaxController } from './tax/tax.controller';
+import { TaxModule } from './tax/tax.module';
 
 @Module({
   imports: [
@@ -83,9 +85,10 @@ import { ProductModule } from './product/product.module';
     CouponModule,
     VariationModule,
     ProductModule,
+    TaxModule,
   ],
 
-  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController, FlashSaleController, CouponController, ProductController],
+  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController, FlashSaleController, CouponController, ProductController, TaxController],
 
   providers: [
     AppService,
