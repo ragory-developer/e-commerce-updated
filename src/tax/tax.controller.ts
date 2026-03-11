@@ -25,7 +25,7 @@ import {
 import { UserType } from '../common/decorators/user-type.decorator';
 
 @ApiTags('Tax')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('tax')
 @UserType('ADMIN')
 export class TaxController {
