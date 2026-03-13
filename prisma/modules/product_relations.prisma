@@ -1,30 +1,3 @@
-// ─── Product ↔ Category (M:N) ────────────────────────────────
-model ProductCategory {
-  productId  String   @map("product_id")
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  categoryId String   @map("category_id")
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  assignedAt DateTime @default(now()) @map("assigned_at")
-
-  @@id([productId, categoryId])
-  @@index([categoryId])
-  @@map("product_categories")
-}
-
-// ─── Product ↔ Tag (M:N) ─────────────────────────────────────
-model ProductTag {
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  tagId     String  @map("tag_id")
-  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  assignedAt DateTime @default(now()) @map("assigned_at")
-
-  @@id([productId, tagId])
-  @@index([tagId])
-  @@map("product_tags")
-}
 
 // ─── Related Products ────────────────────────────────────────
 model RelatedProduct {

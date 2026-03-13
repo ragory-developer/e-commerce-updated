@@ -32,7 +32,6 @@ model Category {
   @@index([slug])
   @@index([deletedAt])
   @@index([createdAt])
-  @@index([depth])
   @@index([path])
   @@index([pathIds])
   @@index([isActive])

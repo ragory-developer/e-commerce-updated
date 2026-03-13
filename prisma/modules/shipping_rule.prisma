@@ -8,7 +8,7 @@ model ShippingRule {
   courier   Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
 
   // Pricing
-  rateType ShippingRateType @default(FLAT) @map("rate_type")
+  rateType ShippingRuleType @default(FLAT) @map("rate_type")
   baseCost Decimal          @map("base_cost") @db.Decimal(18, 4) // Base delivery fee
   perKgCost Decimal         @default(0) @map("per_kg_cost") @db.Decimal(18, 4) // Extra per kg (for WEIGHT_BASED)
 

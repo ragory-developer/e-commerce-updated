@@ -19,7 +19,7 @@ model Admin {
   tokens  AuthToken[]
   devices Device[]    @relation("AdminDevices")
 
-  auditLogs AuditLog[] @relation("AdminAudits")
+  // auditLogs AuditLog[] @relation("AdminAudits")
 
   isActive    Boolean   @default(true) @map("is_active")
   lastLoginAt DateTime? @map("last_login_at")
