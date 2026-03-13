@@ -1,20 +1,37 @@
-enum ShippingRateType {
-  FLAT // Fixed cost per order
-  WEIGHT_BASED // Cost per kg
-  PRICE_BASED // Free above X, else Y
-  ITEM_BASED // Cost per item
-}
+// ─── Shipping: Delivery Zone → Shipping Rule → Courier ───────
+//
+// Hierarchy:
+//   DeliveryZone: Groups areas for shipping (e.g., "Dhaka Metro", "Outside Dhaka")
+//   Courier: External delivery companies (e.g., "Pathao", "Steadfast", "Paperfly", "RedX")
+//   ShippingRule: Defines cost/timing for a zone+courier pair
+//
+// Flow:
+  // 1. Admin creates Delivery Zones (e.g., "Inside Dhaka", "Outside Dhaka", "Hilltrack")
+  // 2. Admin assigns Areas to Zones (via Area.deliveryZoneId)
+  // 3. Admin adds Couriers (Pathao, Steadfast, etc.)
+  // 4. Admin creates Shipping Rules (Zone + Courier = Price + ETA)
+  // 5. At checkout: Customer's area → delivery zone → available shipping rules
+  // 6. Customer picks a courier/rule → shipping cost calculated
+//
+// Real-world example:
+//   Area "Gulshan" → Zone "Dhaka Metro"
+//   Zone "Dhaka Metro" + Courier "Pathao" → ৳60, 1-2 days
+//   Zone "Dhaka Metro" + Courier "Steadfast" → ৳80, same day
 
-model ShippingZone {
+// ─── Delivery Zone ───────────────────────────────────────────
+// Groups areas for consistent shipping pricing
+model DeliveryZone {
   id String @id @default(cuid())
 
-  name     String  @db.VarChar(191)
+  name String @unique @db.VarChar(191) // e.g., "Dhaka Metro", "Suburban Dhaka", "Outside Dhaka"
+  slug String @unique @db.VarChar(100)
+
+  // One zone has many areas (via Area.deliveryZoneId)
+  areas Area[]
+  shippingRules ShippingRule[]
+
   isActive Boolean @default(true) @map("is_active")
 
-  regions Json @db.JsonB
-
-  rates ShippingRate[]
-
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -22,31 +39,116 @@ model ShippingZone {
 
   @@index([isActive])
   @@index([deletedAt])
-  @@map("shipping_zones")
+  @@map("delivery_zones")
 }
 
-model ShippingRate {
+// ─── Courier (Shipping Company) ──────────────────────────────
+// External courier partners like Pathao, Steadfast, RedX, Paperfly, SA Paribahan
+model Courier {
   id String @id @default(cuid())
 
-  shippingZoneId String       @map("shipping_zone_id")
-  shippingZone   ShippingZone @relation(fields: [shippingZoneId], references: [id], onDelete: Cascade)
+  name String @unique @db.VarChar(191) // e.g., "Pathao Courier", "Steadfast", "RedX"
+  slug String @unique @db.VarChar(191) // e.g., "pathao", "steadfast", "redx"
 
-  name String @db.VarChar(191)
+  // Contact
+  phone   String? @db.VarChar(50)
+  email   String? @db.VarChar(191)
+  website String? @db.VarChar(500)
 
-  type     ShippingRateType @default(FLAT)
-  cost     Decimal          @db.Decimal(18, 4)
-  isActive Boolean          @default(true) @map("is_active")
+  // Logo/branding for checkout UI
+  logo String? @db.VarChar(500)
 
-  conditions Json? @db.JsonB
+  // Tracking URL template: replace {tracking_number}
+  // e.g., "https://merchant.pathao.com/tracking?consignment_id={tracking_number}"
+  trackingUrlTemplate String? @map("tracking_url_template") @db.VarChar(500)
+
+  // API integration config (encrypted/private — admin only)
+  // JSON Example:
+  // {
+  //   "apiBaseUrl": "https://api.pathao.com/v1",
+  //   "apiKey": "...",
+  //   "apiSecret": "...",
+  //   "storeId": "12345",
+  //   "webhookSecret": "..."
+  // }
+  apiConfig Json? @map("api_config") @db.JsonB
+
+  shippingRules ShippingRule[]
+  orderPackages OrderPackage[] // packages assigned to this courier
+
+  isActive Boolean @default(true) @map("is_active")
+  position Int     @default(0) // display order in checkout
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@index([shippingZoneId])
-  @@index([type])
+  @@index([slug])
   @@index([isActive])
   @@index([deletedAt])
-  @@map("shipping_rates")
+  @@map("couriers")
+}
+
+// ─── Shipping Rule (Zone + Courier = Pricing) ────────────────
+// Each rule defines: for this zone, with this courier, the cost is X
+model ShippingRule {
+  id String @id @default(cuid())
+
+  deliveryZoneId String       @map("delivery_zone_id")
+  deliveryZone   DeliveryZone @relation(fields: [deliveryZoneId], references: [id], onDelete: Cascade)
+
+  courierId String  @map("courier_id")
+  courier   Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  // // Pricing
+  // rateType ShippingRateType @default(FLAT) @map("rate_type")
+  // baseCost Decimal          @map("base_cost") @db.Decimal(18, 4) // Base delivery fee
+  // perKgCost Decimal         @default(0) @map("per_kg_cost") @db.Decimal(18, 4) // Extra per kg (for WEIGHT_BASED)
+
+  // // Conditions
+  // freeShippingMinimum Decimal? @map("free_shipping_minimum") @db.Decimal(18, 4) // Free if order >= this amount
+  // minOrderAmount      Decimal? @map("min_order_amount") @db.Decimal(18, 4) // Minimum order to use this rule
+  // maxWeight           Decimal? @map("max_weight") @db.Decimal(10, 2) // Max parcel weight in kg
+
+  // // Delivery timing
+  // estimatedMinDays Int @default(1) @map("estimated_min_days") // e.g., 1
+  // estimatedMaxDays Int @default(3) @map("estimated_max_days") // e.g., 3 → shows "1-3 days"
+
+  // isActive Boolean @default(true) @map("is_active")
+  // position Int     @default(0) // display order
+
+  // createdAt DateTime  @default(now()) @map("created_at")
+  // updatedAt DateTime  @updatedAt @map("updated_at")
+  // deletedAt DateTime? @map("deleted_at")
+  // deletedBy String?   @map("deleted_by")
+  ruleType ShippingRuleType @default(FLAT) @map("rule_type")
+
+  baseCost            Decimal  @default(0) @map("base_cost") @db.Decimal(10, 2)
+  perKgCost           Decimal  @default(0) @map("per_kg_cost") @db.Decimal(10, 2)
+  freeShippingMinimum Decimal? @map("free_shipping_minimum") @db.Decimal(18, 4)
+
+  estimatedMinDays Int @default(1) @map("estimated_min_days")
+  estimatedMaxDays Int @default(3) @map("estimated_max_days")
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([deliveryZoneId, courierId]) // One rule per zone+courier pair
+  @@index([deliveryZoneId])
+  @@index([courierId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("shipping_rules")
+}
+
+// Keep the rate type enum (replaces old ShippingRateType)
+enum ShippingRateType {
+  FLAT // Fixed cost per order
+  WEIGHT_BASED // Base + per kg
+  PRICE_BASED // Free above X, else Y
+  ITEM_BASED // Cost per item
 }

@@ -17,20 +17,31 @@ datasource db {
 // MODULE:  ADDRESS.PRISMA
 // ========================================
 
+// ─── UPDATED Address model ───────────────────────────────────
+// Now supports BD location hierarchy while keeping backward compat
+
 model Address {
   id String @id @default(cuid())
 
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  label        String? @db.VarChar(50)
-  address      String  @db.VarChar(191)
-  descriptions String  @db.Text
-  city         String  @db.VarChar(191)
-  state        String  @db.VarChar(191)
-  road         String  @db.VarChar(191)
-  zip          String  @db.VarChar(20)
-  country      String  @db.VarChar(50)
+  label        String? @db.VarChar(50) // "Home", "Office"
+  fullName     String  @map("full_name") @db.VarChar(191)
+  phone        String  @db.VarChar(50)
+  addressLine  String  @map("address_line") @db.Text  // Full street address
+
+  // BD Location refs (nullable for backward compat)
+  divisionId String? @map("division_id")
+  cityId     String? @map("city_id")
+  areaId     String? @map("area_id")
+
+  // Denormalized for display + order snapshot (so we don't need joins)
+  division   String  @db.VarChar(100) // "Dhaka"
+  city       String  @db.VarChar(100) // "Dhaka"
+  area       String  @db.VarChar(150) // "Dhanmondi"
+  postalCode String  @map("postal_code") @db.VarChar(10) // "1205"
+  country    String  @default("BD") @db.VarChar(50)
 
   isDefault Boolean @default(false) @map("is_default")
 
@@ -43,7 +54,7 @@ model Address {
   deletedBy String?   @map("deleted_by")
 
   @@index([customerId])
-  @@index([country])
+  @@index([areaId])
   @@index([deletedAt])
   @@index([createdAt])
   @@map("addresses")
@@ -1106,6 +1117,109 @@ model InventoryLog {
 
 
 // ========================================
+// MODULE:  LOCATION.PRISMA
+// ========================================
+
+// ─── Location Hierarchy: Division → City → Area ──────────────
+// Default country: Bangladesh (BD)
+// Admin seeds these tables once; customer picks from dropdowns
+// Division → City → Area (each area has a postal code)
+//
+// Flow:
+//   1. Customer selects Division (e.g., "ঢাকা বিভাগ")
+//   2. Cities load for that division (e.g., "Dhaka", "Gazipur", "Narayanganj")
+//   3. Areas load for that city (e.g., "Dhanmondi", "Gulshan", "Mirpur")
+//   4. Postal code auto-fills from selected area
+//
+// Bangladesh has 8 divisions, ~64 districts (cities), ~500+ upazilas/areas
+// This structure also works for other countries if expanded later
+
+model Division {
+  id String @id @default(cuid())
+
+  name   String @db.VarChar(191) // e.g., "Dhaka", "Chattogram", "Rajshahi"
+  bnName String @map("bn_name") @db.VarChar(191) // e.g., "ঢাকা বিভাগ"
+
+  // Bangladesh is default; future-proof for multi-country
+  country String @default("BD") @db.VarChar(5)
+
+  position Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  cities    City[]
+  addresses Address[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([country, name])
+  @@index([country])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("divisions")
+}
+
+model City {
+  id String @id @default(cuid())
+
+  divisionId String   @map("division_id")
+  division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+
+  name   String @db.VarChar(191) // e.g., "Dhaka", "Gazipur"
+  bnName String @map("bn_name") @db.VarChar(191) // e.g., "ঢাকা"
+
+  position Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  areas     Area[]
+  addresses Address[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([divisionId, name])
+  @@index([divisionId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("cities")
+}
+
+model Area {
+  id String @id @default(cuid())
+
+  cityId String @map("city_id")
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  name       String @db.VarChar(191) // e.g., "Dhanmondi", "Gulshan"
+  bnName     String @map("bn_name") @db.VarChar(191) // e.g., "ধানমন্ডি"
+  postalCode String @map("postal_code") @db.VarChar(10) // e.g., "1205"
+
+  // position Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  // An area belongs to exactly one delivery zone (set by admin)
+  deliveryZoneId String?       @map("delivery_zone_id")
+  deliveryZone   DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+
+  // addresses Address[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([cityId, name])
+  @@index([cityId])
+  @@index([postalCode])
+  @@index([deliveryZoneId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("areas")
+}
+
+
+// ========================================
 // MODULE:  MEDIA.PRISMA
 // ========================================
 
@@ -1325,38 +1439,45 @@ model Order {
   customerId String?   @map("customer_id")
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
+  // Customer snapshot
   customerEmail     String  @map("customer_email") @db.VarChar(191)
   customerPhone     String? @map("customer_phone") @db.VarChar(50)
   customerFirstName String  @map("customer_first_name") @db.VarChar(191)
   customerLastName  String  @map("customer_last_name") @db.VarChar(191)
 
-  billingAddress Json @map("billing_address") @db.JsonB
+  // Address snapshot (JSON = immutable copy)
   shippingAddress Json @map("shipping_address") @db.JsonB
+  billingAddress  Json @map("billing_address") @db.JsonB
 
+  // Delivery info
+  deliveryZoneId String? @map("delivery_zone_id")
+  courierId      String? @map("courier_id")
+  deliveryZone   String? @map("delivery_zone_name") @db.VarChar(100)
+  courierName    String? @map("courier_name") @db.VarChar(100)
+
+  // Money breakdown
   subTotal     Decimal @map("sub_total") @db.Decimal(18, 4)
   shippingCost Decimal @default(0) @map("shipping_cost") @db.Decimal(18, 4)
   discount     Decimal @default(0) @db.Decimal(18, 4)
   taxTotal     Decimal @default(0) @map("tax_total") @db.Decimal(18, 4)
   total        Decimal @db.Decimal(18, 4)
 
-  shippingMethod    ShippingMethod? @map("shipping_method")
-  paymentMethod     PaymentMethod   @map("payment_method")
-  trackingReference String?         @map("tracking_reference") @db.Text
+  paymentMethod     PaymentMethod @map("payment_method")
+  trackingReference String?       @map("tracking_reference") @db.Text
 
+  // Coupon snapshot
   couponId            String?             @map("coupon_id")
   couponCode          String?             @map("coupon_code") @db.VarChar(191)
   couponDiscountType  CouponDiscountType? @map("coupon_discount_type")
   couponDiscountValue Decimal?            @map("coupon_discount_value") @db.Decimal(18, 4)
 
-  currency     String  @db.VarChar(10)
-  currencyRate Decimal @map("currency_rate") @db.Decimal(18, 4)
+  currency     String  @default("BDT") @db.VarChar(10)
+  currencyRate Decimal @default(1) @map("currency_rate") @db.Decimal(18, 4)
 
   status OrderStatus @default(PENDING)
 
-  // Admin/customer notes
-  notes Json? @db.JsonB
-
-  locale    String  @db.VarChar(10)
+  notes     Json?   @db.JsonB
+  locale    String  @default("bn-BD") @db.VarChar(10)
   ipAddress String? @map("ip_address") @db.VarChar(45)
   userAgent String? @map("user_agent") @db.VarChar(500)
 
@@ -1373,9 +1494,8 @@ model Order {
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
-  createdBy String? @map("created_by")
-  updatedBy String? @map("updated_by")
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
 
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
@@ -2151,23 +2271,40 @@ model Setting {
 // MODULE:  SHIPPING.PRISMA
 // ========================================
 
-enum ShippingRateType {
-  FLAT // Fixed cost per order
-  WEIGHT_BASED // Cost per kg
-  PRICE_BASED // Free above X, else Y
-  ITEM_BASED // Cost per item
-}
+// ─── Shipping: Delivery Zone → Shipping Rule → Courier ───────
+//
+// Hierarchy:
+//   DeliveryZone: Groups areas for shipping (e.g., "Dhaka Metro", "Outside Dhaka")
+//   Courier: External delivery companies (e.g., "Pathao", "Steadfast", "Paperfly", "RedX")
+//   ShippingRule: Defines cost/timing for a zone+courier pair
+//
+// Flow:
+  // 1. Admin creates Delivery Zones (e.g., "Inside Dhaka", "Outside Dhaka", "Hilltrack")
+  // 2. Admin assigns Areas to Zones (via Area.deliveryZoneId)
+  // 3. Admin adds Couriers (Pathao, Steadfast, etc.)
+  // 4. Admin creates Shipping Rules (Zone + Courier = Price + ETA)
+  // 5. At checkout: Customer's area → delivery zone → available shipping rules
+  // 6. Customer picks a courier/rule → shipping cost calculated
+//
+// Real-world example:
+//   Area "Gulshan" → Zone "Dhaka Metro"
+//   Zone "Dhaka Metro" + Courier "Pathao" → ৳60, 1-2 days
+//   Zone "Dhaka Metro" + Courier "Steadfast" → ৳80, same day
 
-model ShippingZone {
+// ─── Delivery Zone ───────────────────────────────────────────
+// Groups areas for consistent shipping pricing
+model DeliveryZone {
   id String @id @default(cuid())
 
-  name     String  @db.VarChar(191)
+  name String @unique @db.VarChar(191) // e.g., "Dhaka Metro", "Suburban Dhaka", "Outside Dhaka"
+  slug String @unique @db.VarChar(100)
+
+  // One zone has many areas (via Area.deliveryZoneId)
+  areas Area[]
+  shippingRules ShippingRule[]
+
   isActive Boolean @default(true) @map("is_active")
 
-  regions Json @db.JsonB
-
-  rates ShippingRate[]
-
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -2175,33 +2312,118 @@ model ShippingZone {
 
   @@index([isActive])
   @@index([deletedAt])
-  @@map("shipping_zones")
+  @@map("delivery_zones")
 }
 
-model ShippingRate {
+// ─── Courier (Shipping Company) ──────────────────────────────
+// External courier partners like Pathao, Steadfast, RedX, Paperfly, SA Paribahan
+model Courier {
   id String @id @default(cuid())
 
-  shippingZoneId String       @map("shipping_zone_id")
-  shippingZone   ShippingZone @relation(fields: [shippingZoneId], references: [id], onDelete: Cascade)
+  name String @unique @db.VarChar(191) // e.g., "Pathao Courier", "Steadfast", "RedX"
+  slug String @unique @db.VarChar(191) // e.g., "pathao", "steadfast", "redx"
 
-  name String @db.VarChar(191)
+  // Contact
+  phone   String? @db.VarChar(50)
+  email   String? @db.VarChar(191)
+  website String? @db.VarChar(500)
 
-  type     ShippingRateType @default(FLAT)
-  cost     Decimal          @db.Decimal(18, 4)
-  isActive Boolean          @default(true) @map("is_active")
+  // Logo/branding for checkout UI
+  logo String? @db.VarChar(500)
 
-  conditions Json? @db.JsonB
+  // Tracking URL template: replace {tracking_number}
+  // e.g., "https://merchant.pathao.com/tracking?consignment_id={tracking_number}"
+  trackingUrlTemplate String? @map("tracking_url_template") @db.VarChar(500)
+
+  // API integration config (encrypted/private — admin only)
+  // JSON Example:
+  // {
+  //   "apiBaseUrl": "https://api.pathao.com/v1",
+  //   "apiKey": "...",
+  //   "apiSecret": "...",
+  //   "storeId": "12345",
+  //   "webhookSecret": "..."
+  // }
+  apiConfig Json? @map("api_config") @db.JsonB
+
+  shippingRules ShippingRule[]
+  orderPackages OrderPackage[] // packages assigned to this courier
+
+  isActive Boolean @default(true) @map("is_active")
+  position Int     @default(0) // display order in checkout
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@index([shippingZoneId])
-  @@index([type])
+  @@index([slug])
   @@index([isActive])
   @@index([deletedAt])
-  @@map("shipping_rates")
+  @@map("couriers")
+}
+
+// ─── Shipping Rule (Zone + Courier = Pricing) ────────────────
+// Each rule defines: for this zone, with this courier, the cost is X
+model ShippingRule {
+  id String @id @default(cuid())
+
+  deliveryZoneId String       @map("delivery_zone_id")
+  deliveryZone   DeliveryZone @relation(fields: [deliveryZoneId], references: [id], onDelete: Cascade)
+
+  courierId String  @map("courier_id")
+  courier   Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  // // Pricing
+  // rateType ShippingRateType @default(FLAT) @map("rate_type")
+  // baseCost Decimal          @map("base_cost") @db.Decimal(18, 4) // Base delivery fee
+  // perKgCost Decimal         @default(0) @map("per_kg_cost") @db.Decimal(18, 4) // Extra per kg (for WEIGHT_BASED)
+
+  // // Conditions
+  // freeShippingMinimum Decimal? @map("free_shipping_minimum") @db.Decimal(18, 4) // Free if order >= this amount
+  // minOrderAmount      Decimal? @map("min_order_amount") @db.Decimal(18, 4) // Minimum order to use this rule
+  // maxWeight           Decimal? @map("max_weight") @db.Decimal(10, 2) // Max parcel weight in kg
+
+  // // Delivery timing
+  // estimatedMinDays Int @default(1) @map("estimated_min_days") // e.g., 1
+  // estimatedMaxDays Int @default(3) @map("estimated_max_days") // e.g., 3 → shows "1-3 days"
+
+  // isActive Boolean @default(true) @map("is_active")
+  // position Int     @default(0) // display order
+
+  // createdAt DateTime  @default(now()) @map("created_at")
+  // updatedAt DateTime  @updatedAt @map("updated_at")
+  // deletedAt DateTime? @map("deleted_at")
+  // deletedBy String?   @map("deleted_by")
+  ruleType ShippingRuleType @default(FLAT) @map("rule_type")
+
+  baseCost            Decimal  @default(0) @map("base_cost") @db.Decimal(10, 2)
+  perKgCost           Decimal  @default(0) @map("per_kg_cost") @db.Decimal(10, 2)
+  freeShippingMinimum Decimal? @map("free_shipping_minimum") @db.Decimal(18, 4)
+
+  estimatedMinDays Int @default(1) @map("estimated_min_days")
+  estimatedMaxDays Int @default(3) @map("estimated_max_days")
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([deliveryZoneId, courierId]) // One rule per zone+courier pair
+  @@index([deliveryZoneId])
+  @@index([courierId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("shipping_rules")
+}
+
+// Keep the rate type enum (replaces old ShippingRateType)
+enum ShippingRateType {
+  FLAT // Fixed cost per order
+  WEIGHT_BASED // Base + per kg
+  PRICE_BASED // Free above X, else Y
+  ITEM_BASED // Cost per item
 }
 
 

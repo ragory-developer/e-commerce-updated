@@ -1,0 +1,97 @@
+// ─── Location Hierarchy: Division → City → Area ──────────────
+// Default country: Bangladesh (BD)
+// Admin seeds these tables once; customer picks from dropdowns
+// Division → City → Area (each area has a postal code)
+//
+// Flow:
+//   1. Customer selects Division (e.g., "ঢাকা বিভাগ")
+//   2. Cities load for that division (e.g., "Dhaka", "Gazipur", "Narayanganj")
+//   3. Areas load for that city (e.g., "Dhanmondi", "Gulshan", "Mirpur")
+//   4. Postal code auto-fills from selected area
+//
+// Bangladesh has 8 divisions, ~64 districts (cities), ~500+ upazilas/areas
+// This structure also works for other countries if expanded later
+
+model Division {
+  id String @id @default(cuid())
+
+  name   String @db.VarChar(191) // e.g., "Dhaka", "Chattogram", "Rajshahi"
+  bnName String @map("bn_name") @db.VarChar(191) // e.g., "ঢাকা বিভাগ"
+
+  // Bangladesh is default; future-proof for multi-country
+  country String @default("BD") @db.VarChar(5)
+
+  position Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  cities    City[]
+  addresses Address[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([country, name])
+  @@index([country])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("divisions")
+}
+
+model City {
+  id String @id @default(cuid())
+
+  divisionId String   @map("division_id")
+  division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+
+  name   String @db.VarChar(191) // e.g., "Dhaka", "Gazipur"
+  bnName String @map("bn_name") @db.VarChar(191) // e.g., "ঢাকা"
+
+  position Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  areas     Area[]
+  addresses Address[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([divisionId, name])
+  @@index([divisionId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("cities")
+}
+
+model Area {
+  id String @id @default(cuid())
+
+  cityId String @map("city_id")
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  name       String @db.VarChar(191) // e.g., "Dhanmondi", "Gulshan"
+  bnName     String @map("bn_name") @db.VarChar(191) // e.g., "ধানমন্ডি"
+  postalCode String @map("postal_code") @db.VarChar(10) // e.g., "1205"
+
+  // position Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  // An area belongs to exactly one delivery zone (set by admin)
+  deliveryZoneId String?       @map("delivery_zone_id")
+  deliveryZone   DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+
+  // addresses Address[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([cityId, name])
+  @@index([cityId])
+  @@index([postalCode])
+  @@index([deliveryZoneId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("areas")
+}

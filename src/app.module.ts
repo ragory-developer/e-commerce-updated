@@ -47,6 +47,13 @@ import { ProductController } from './product/product.controller';
 import { ProductModule } from './product/product.module';
 import { TaxController } from './tax/tax.controller';
 import { TaxModule } from './tax/tax.module';
+import { LocationModule } from './location/location.module';
+import { ShippingController } from './shipping/shipping.controller';
+import { ShippingModule } from './shipping/shipping.module';
+import { InventoryService } from './inventory/inventory.service';
+import { InventoryController } from './inventory/inventory.controller';
+import { InventoryModule } from './inventory/inventory.module';
+import { OrderModule } from './order/order.module';
 
 @Module({
   imports: [
@@ -86,9 +93,13 @@ import { TaxModule } from './tax/tax.module';
     VariationModule,
     ProductModule,
     TaxModule,
+    LocationModule,
+    ShippingModule,
+    InventoryModule,
+    OrderModule,
   ],
 
-  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController, FlashSaleController, CouponController, ProductController, TaxController],
+  controllers: [AppController, MediaController, BrandController, AttributeSetController, AttributeController, FlashSaleController, CouponController, ProductController, TaxController, ShippingController, InventoryController],
 
   providers: [
     AppService,
@@ -111,6 +122,7 @@ import { TaxModule } from './tax/tax.module';
     AttributeSetService,
     AttributeService,
     CouponService,
+    InventoryService,
   ],
 })
 export class AppModule {}
