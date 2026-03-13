@@ -12,21 +12,7 @@ model Media {
   storageDriver String @map("storage_driver") @db.VarChar(20) //local || cloudinary
   storagePath   String @map("storage_path") @db.VarChar(500)
   storageUrl    String @map("storage_url") @db.VarChar(500)
-
-  // Image variants (JSON)
-  // Example for local:
-  // {
-  //   "thumb": { "url": "http://localhost:3000/uploads/media/2026/02/file_thumb.jpg", "width": 150, "height": 150 },
-  //   "medium": { "url": "http://localhost:3000/uploads/media/2026/02/file_medium.jpg", "width": 600, "height": 600 },
-  //   "original": { "url": "http://localhost:3000/uploads/media/2026/02/file.jpg", "width": 1920, "height": 1080 }
-  // }
-  // Example for cloudinary:
-  // {
-  //   "thumb": { "url": "https://res.cloudinary.com/.../c_thumb,w_150,h_150/...", "width": 150, "height": 150 },
-  //   "medium": { "url": "https://res.cloudinary.com/.../c_fill,w_600,h_600/...", "width": 600, "height": 600 },
-  //   "original": { "url": "https://res.cloudinary.com/.../...", "width": 1920, "height": 1080 }
-  // }
-
+  
   variants Json? @db.JsonB
 
   // ! image metadata

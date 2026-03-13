@@ -1,0 +1,30 @@
+model Area {
+  id String @id @default(cuid())
+
+  cityId String @map("city_id")
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  name       String @db.VarChar(191) // e.g., "Dhanmondi", "Gulshan"
+  slug String @unique
+  postalCode String @map("postal_code") @db.VarChar(10) // e.g., "1205"
+
+  // position Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  // An area belongs to exactly one delivery zone (set by admin)
+  deliveryZoneId String?       @map("delivery_zone_id")
+  deliveryZone   DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+
+  addresses Address[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@unique([cityId, slug])
+  @@index([cityId])
+  @@index([postalCode])
+  @@index([deliveryZoneId])
+  @@index([isActive])
+  @@index([slug])
+  @@map("areas")
+}

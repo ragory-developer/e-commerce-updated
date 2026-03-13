@@ -1,25 +1,17 @@
-// ─── Customer (Guest + Registered in ONE table) ──────────────
-// Flow: Guest browses → OTP verify phone → Guest row created (isGuest=true)
-//       → fills name/address during checkout → order linked to this ID
-//       → later creates account (adds email+password) → isGuest=false
-//       → SAME ID, no data migration, all orders preserved!
-
 model Customer {
   id String @id @default(cuid())
 
   // Basic Info
   firstName String? @map("first_name") @db.VarChar(100)
   lastName  String? @map("last_name") @db.VarChar(100)
-
   email         String? @unique @db.VarChar(255)
-  emailVerified Boolean @default(false) @map("email_verified")
-
   phone         String  @unique @db.VarChar(20)
+  password String? @db.VarChar(255)
+  avatar String?
+
+  emailVerified Boolean @default(false) @map("email_verified")
   phoneVerified Boolean @default(false) @map("phone_verified")
 
-  password String? @db.VarChar(255) // null for guest
-
-  avatar String?
 
   loginAttempts Int       @default(0) @map("login_attempts")
   lockedUntil   DateTime? @map("locked_until")
@@ -43,9 +35,9 @@ model Customer {
   devices   Device[]       @relation("CustomerDevices")
   addresses Address[]
   orders    Order[]
-  carts     Cart[]
+  // carts     Cart[]
   reviews   Review[]
-  wishlist  WishlistItem[]
+  // wishlist  WishlistItem[]
 
   @@index([phone])
   @@index([email])

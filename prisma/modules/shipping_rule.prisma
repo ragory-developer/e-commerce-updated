@@ -1,0 +1,38 @@
+model ShippingRule {
+  id String @id @default(cuid())
+
+  deliveryZoneId String       @map("delivery_zone_id")
+  deliveryZone   DeliveryZone @relation(fields: [deliveryZoneId], references: [id], onDelete: Cascade)
+
+  courierId String  @map("courier_id")
+  courier   Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  // Pricing
+  rateType ShippingRateType @default(FLAT) @map("rate_type")
+  baseCost Decimal          @map("base_cost") @db.Decimal(18, 4) // Base delivery fee
+  perKgCost Decimal         @default(0) @map("per_kg_cost") @db.Decimal(18, 4) // Extra per kg (for WEIGHT_BASED)
+
+  // Conditions
+  freeShippingMinimum Decimal? @map("free_shipping_minimum") @db.Decimal(18, 4) // Free if order >= this amount
+  // minOrderAmount      Decimal? @map("min_order_amount") @db.Decimal(18, 4) // Minimum order to use this rule
+  // maxWeight           Decimal? @map("max_weight") @db.Decimal(10, 2) // Max parcel weight in kg
+
+  // // Delivery timing
+  estimatedMinDays Int @default(1) @map("estimated_min_days") // e.g., 1
+  estimatedMaxDays Int @default(3) @map("estimated_max_days") // e.g., 3 → shows "1-3 days"
+
+  ruleType ShippingRuleType @default(FLAT) @map("rule_type")
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([deliveryZoneId, courierId]) // One rule per zone+courier pair
+  @@index([deliveryZoneId])
+  @@index([courierId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("shipping_rules")
+}

@@ -1,40 +1,26 @@
-// ─── Inventory Log (Append-Only Audit Trail) ─────────────────
-// Every stock change is recorded here. NEVER delete or update rows.
-// This is your single source of truth for stock movement history.
-
-enum InventoryReason {
-  INITIAL_STOCK          // Product/variant created with opening stock
-  ORDER_PLACED           // Stock deducted when order placed (COD)
-  ORDER_RESERVED         // Stock reserved for online payment
-  ORDER_CANCELED         // Stock restored on full order cancel
-  ORDER_ITEM_CANCELED    // Stock restored on partial item cancel
-  ORDER_REFUNDED         // Stock restored on refund
-  MANUAL_ADJUSTMENT      // Admin manually corrected stock
-  RESTOCK                // New stock received from supplier
-  DAMAGED                // Stock written off as damaged
-  RETURNED               // Customer return (stock restored)
-  RESERVATION_RELEASED   // Expired/failed payment reservation released
-  RESERVATION_CONVERTED  // Reservation confirmed → actual deduction
-}
-
 model InventoryLog {
   id String @id @default(cuid())
 
-  productId        String  @map("product_id")
+  productId       String  @map("product_id")
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
   productVariantId String? @map("product_variant_id")
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+
   sku              String? @db.VarChar(100)
 
   // Link to triggering order (null for manual adjustments, restocks)
   orderId String? @map("order_id")
 
-  reason   InventoryReason
-  quantity Int               // positive = stock added, negative = stock removed
+  reason InventoryReason @default(MANUAL_ADJUSTMENT)
 
-  stockBefore Int @map("stock_before")
-  stockAfter  Int @map("stock_after")
+  qtyBefore   Int @map("qty_before")
+  qtyChange   Int @map("qty_change")
+  qtyAfter    Int @map("qty_after")
 
-  // Who triggered this change
-  createdBy String? @map("created_by") // adminId, customerId, or "system"
+  reference   String? @db.VarChar(100) // orderId, etc.
+  notes       String? @db.VarChar(500)
+  changedBy   String? @map("changed_by")
 
   // Extra context: { "note": "Damaged in warehouse", "batchId": "B-001" }
   metadata Json? @db.JsonB
@@ -46,7 +32,6 @@ model InventoryLog {
   @@index([productVariantId])
   @@index([orderId])
   @@index([reason])
-  @@index([createdBy])
   @@index([createdAt])
   @@map("inventory_logs")
 }

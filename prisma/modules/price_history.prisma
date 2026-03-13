@@ -9,6 +9,9 @@ model PriceHistory {
   previousSpecialPrice Decimal? @map("previous_special_price") @db.Decimal(18, 4)
   newSpecialPrice      Decimal? @map("new_special_price") @db.Decimal(18, 4)
 
+  changedBy String? @map("changed_by")
+  changedAt DateTime @default(now()) @map("changed_at")
+
   metadata Json? @db.JsonB
 
   createdAt DateTime @default(now()) @map("created_at")

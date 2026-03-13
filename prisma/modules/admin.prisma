@@ -19,6 +19,8 @@ model Admin {
   tokens  AuthToken[]
   devices Device[]    @relation("AdminDevices")
 
+  auditLogs AuditLog[] @relation("AdminAudits")
+
   isActive    Boolean   @default(true) @map("is_active")
   lastLoginAt DateTime? @map("last_login_at")
   lastLoginIp String?   @map("last_login_ip") @db.VarChar(45)
@@ -26,7 +28,6 @@ model Admin {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   createdBy String?  @map("created_by")
-
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 

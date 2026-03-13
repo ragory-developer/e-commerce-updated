@@ -2,6 +2,7 @@ model TaxClass {
   id String @id @default(cuid())
 
   name    String     @db.VarChar(191)
+  description String? @db.VarChar(500)
   basedOn TaxBasedOn @default(SHIPPING_ADDRESS) @map("based_on")
 
   translations Json? @db.JsonB
@@ -44,19 +45,4 @@ model TaxRate {
   @@index([country, state])
   @@index([deletedAt])
   @@map("tax_rates")
-}
-
-model OrderTax {
-  orderId   String  @map("order_id")
-  order     Order   @relation(fields: [orderId], references: [id])
-  taxRateId String  @map("tax_rate_id")
-  taxRate   TaxRate @relation(fields: [taxRateId], references: [id])
-
-  amount    Decimal @db.Decimal(15, 4)
-  rateName  String  @map("rate_name") @db.VarChar(191)
-  rateValue Decimal @map("rate_value") @db.Decimal(8, 4)
-
-  @@id([orderId, taxRateId])
-  @@index([taxRateId])
-  @@map("order_taxes")
 }

@@ -5,10 +5,14 @@ model Transaction {
   order   Order  @relation(fields: [orderId], references: [id])
 
   transactionId String        @map("transaction_id") @db.VarChar(191)
+
   paymentMethod PaymentMethod @map("payment_method")
-  status        TransactionStatus @default(INITIATED)
+  paymentStatus PaymentStatus @map("payment_status")
+
   amount        Decimal       @db.Decimal(18, 4)
   currency      String        @db.VarChar(10)
+
+  reference  String? @db.VarChar(255)
 
   gatewayResponse Json? @map("gateway_response") @db.JsonB
   refunds         Json? @db.JsonB

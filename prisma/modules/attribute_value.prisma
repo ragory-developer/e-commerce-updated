@@ -5,7 +5,9 @@ model AttributeValue {
   attribute   Attribute @relation(fields: [attributeId], references: [id])
 
   value    String @db.VarChar(191)
-  position Int    @default(0)
+
+  label    String? @db.VarChar(191)
+  hexColor String? @map("hex_color") @db.VarChar(7)
 
   translations Json? @db.JsonB
 

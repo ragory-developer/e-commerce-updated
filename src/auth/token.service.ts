@@ -1,3 +1,5 @@
+// ─── src/auth/token.service.ts ──────────────────────────────
+
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -19,7 +21,6 @@ import { AdminPermission, AdminRole, AuthUserType } from '@prisma/client';
 
 @Injectable()
 export class TokenService {
-  // Placeholder for token-related logic (e.g., generating, validating tokens)
   private readonly logger = new Logger(TokenService.name);
 
   constructor(
@@ -28,17 +29,17 @@ export class TokenService {
     private readonly prisma: PrismaService,
   ) {}
 
-  // ! Hash a row token using SHA-256 before storing in DB
+  // ─── Hash refresh token before DB storage ───────────────────
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
-  // ! generate refresh token randomly
+  // ─── Generate secure refresh token ──────────────────────────
   private generateRefreshToken(): string {
     return crypto.randomBytes(64).toString('hex');
   }
 
-  // ! Generate JWT access token
+  // ─── Generate JWT access token ──────────────────────────────
   generateAccessToken(payload: JwtPayload): string {
     return this.jwtService.sign(payload, {
       expiresIn: AUTH_CONFIG.ACCESS_TOKEN_EXPIRES_IN,
@@ -46,31 +47,31 @@ export class TokenService {
     });
   }
 
-  //! ─── Issue short-lived registration token (after OTP verify) ─
-  //! This is NOT an auth token — it proves the phone was verified
-  //! and is consumed when registration is completed.
+  // ─── Registration token (OTP verified proof) ────────────────
   generateRegistrationToken(phone: string): string {
     const payload: RegistrationTokenPayload = {
       sub: phone,
       purpose: 'REGISTRATION',
     };
+
     return this.jwtService.sign(payload, {
       expiresIn: REGISTRATION_TOKEN_EXPIRES_IN,
       secret: this.ConfigService.getOrThrow<string>('jwt.secret'),
     });
   }
 
-  // ! verify registration token and extract phone number
   verifyRegistrationToken(token: string): RegistrationTokenPayload {
     try {
       const payload = this.jwtService.verify<RegistrationTokenPayload>(token, {
         secret: this.ConfigService.getOrThrow<string>('jwt.secret'),
       });
+
       if (payload.purpose !== 'REGISTRATION') {
         throw new UnauthorizedException(
           AUTH_ERROR.OTP_REGISTRATION_TOKEN_INVALID,
         );
       }
+
       return payload;
     } catch {
       throw new UnauthorizedException(
@@ -79,17 +80,20 @@ export class TokenService {
     }
   }
 
-  // ! create or reuse a device record
+  // ─── Device management ──────────────────────────────────────
   async upsertDevice(
     userType: AuthUserType,
     ownerId: string,
     deviceInfo: DeviceInfo,
   ): Promise<string> {
-    const isAdmin = userType === 'ADMIN';
-    const ownerField = isAdmin ? { adminId: ownerId } : { customerId: ownerId };
+    const ownerField =
+      userType === 'ADMIN' ? { adminId: ownerId } : { customerId: ownerId };
 
     const existing = await this.prisma.device.findFirst({
-      where: { ...ownerField, deviceId: deviceInfo.clientDeviceId },
+      where: {
+        ...ownerField,
+        deviceId: deviceInfo.clientDeviceId,
+      },
       select: { id: true },
     });
 
@@ -106,8 +110,10 @@ export class TokenService {
           ipAddress: deviceInfo.ipAddress ?? null,
         },
       });
+
       return existing.id;
     }
+
     const device = await this.prisma.device.create({
       data: {
         ...ownerField,
@@ -120,17 +126,18 @@ export class TokenService {
       },
       select: { id: true },
     });
+
     return device.id;
   }
 
-  // ! access token + refresh token pair
+  // ─── Issue access + refresh tokens ──────────────────────────
   async issuesTokenPair(
     userType: AuthUserType,
     ownerId: string,
     deviceDbId: string,
     role?: AdminRole,
     permission?: AdminPermission[],
-    tokenFamily?: string, // for refresh token rotation
+    tokenFamily?: string,
   ): Promise<TokenPair> {
     const payload: JwtPayload = {
       sub: ownerId,
@@ -141,8 +148,10 @@ export class TokenService {
     };
 
     const accessToken = this.generateAccessToken(payload);
+
     const refreshToken = this.generateRefreshToken();
     const hashedRefreshToken = this.hashToken(refreshToken);
+
     const family = tokenFamily ?? crypto.randomUUID();
 
     const expireAt = new Date(
@@ -152,6 +161,7 @@ export class TokenService {
     const ownerField =
       userType === 'ADMIN' ? { adminId: ownerId } : { customerId: ownerId };
 
+    // 🔐 Production-level metadata storage
     await this.prisma.authToken.create({
       data: {
         userType,
@@ -160,17 +170,21 @@ export class TokenService {
         tokenFamily: family,
         tokenHash: hashedRefreshToken,
         expiresAt: expireAt,
+        issuedAt: new Date(),
+        revoked: false,
+        revokedAt: null,
+        revokedReason: null,
       },
     });
 
     return {
       accessToken,
       refreshToken,
-      expiresIn: AUTH_CONFIG.ACCESS_TOKEN_EXPIRES_IN / 1000, // convert ms to seconds
+      expiresIn: AUTH_CONFIG.ACCESS_TOKEN_EXPIRES_IN / 1000,
     };
   }
 
-  // ! full login: upsert device + issue tokens
+  // ─── Login helper ───────────────────────────────────────────
   async loginAndIssueTokens(
     userType: AuthUserType,
     ownerId: string,
@@ -179,6 +193,7 @@ export class TokenService {
     permission?: AdminPermission[],
   ): Promise<AuthResult> {
     const deviceDbId = await this.upsertDevice(userType, ownerId, deviceInfo);
+
     const tokens = await this.issuesTokenPair(
       userType,
       ownerId,
@@ -186,43 +201,13 @@ export class TokenService {
       role,
       permission,
     );
+
     return { tokens, deviceDbId };
   }
 
-  // ! revoke token family if reuse detected
-  private async revokeTokenFamily(
-    tokenFamily: string,
-    reason: string,
-  ): Promise<void> {
-    const tokens = await this.prisma.authToken.findMany({
-      where: { tokenFamily },
-      include: { device: true },
-    });
-    await this.prisma.authToken.updateMany({
-      where: { tokenFamily },
-      data: {
-        revoked: true,
-        revokedReason: reason,
-        revokedAt: new Date(),
-      },
-    });
-
-    const deviceIds = [
-      ...new Set(tokens.map((t) => t.deviceId).filter(Boolean)),
-    ] as string[];
-
-    if (deviceIds.length > 0) {
-      await this.prisma.device.updateMany({
-        where: { id: { in: deviceIds } },
-        data: { isActive: false, revokedAt: new Date() },
-      });
-    }
-  }
-
-  // ! rotate refresh token: invalidate old, issue new
+  // ─── Refresh token rotation ─────────────────────────────────
   async rotateRefreshToken(
     rawRefreshToken: string,
-    clientDeviceId?: string,
   ): Promise<{ tokens: TokenPair; UserType: AuthUserType; ownerId: string }> {
     const hashedToken = this.hashToken(rawRefreshToken);
 
@@ -235,24 +220,11 @@ export class TokenService {
       throw new UnauthorizedException(AUTH_ERROR.TOKEN_INVALID);
     }
 
-    // ! reuse detection: if token is valid but device is revoked, it's a reuse attempt
     if (tokenRecord.revoked) {
-      this.logger.warn(
-        `Refresh token reuse detected! Family: ${tokenRecord.tokenFamily}, Device: ${tokenRecord.deviceId}`,
-      );
-      await this.revokeTokenFamily(tokenRecord.tokenFamily, 'SECURITY');
       throw new UnauthorizedException(AUTH_ERROR.REFRESH_TOKEN_REUSE);
     }
 
     if (tokenRecord.expiresAt < new Date()) {
-      await this.prisma.authToken.update({
-        where: { id: tokenRecord.id },
-        data: {
-          revoked: true,
-          revokedAt: new Date(),
-          revokedReason: 'EXPIRED',
-        },
-      });
       throw new UnauthorizedException(AUTH_ERROR.TOKEN_INVALID);
     }
 
@@ -262,66 +234,34 @@ export class TokenService {
 
     const { userType, adminId, customerId, tokenFamily, deviceId } =
       tokenRecord;
+
     const ownerId = (adminId ?? customerId)!;
 
-    if (!deviceId) throw new UnauthorizedException(AUTH_ERROR.TOKEN_INVALID);
+    await this.prisma.authToken.update({
+      where: { id: tokenRecord.id },
+      data: {
+        revoked: true,
+        revokedAt: new Date(),
+        revokedReason: 'ROTATED',
+      },
+    });
 
-    if (userType === 'ADMIN') {
-      const admin = await this.prisma.admin.findFirst({
-        where: { id: ownerId, isActive: true, deletedAt: null },
-        select: { id: true, role: true, permissions: true },
-      });
-      if (!admin) throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_DISABLED);
+    const tokens = await this.issuesTokenPair(
+      userType,
+      ownerId,
+      deviceId!,
+      undefined,
+      undefined,
+      tokenFamily,
+    );
 
-      await this.prisma.authToken.update({
-        where: { id: tokenRecord.id },
-        data: {
-          revoked: true,
-          revokedAt: new Date(),
-          revokedReason: 'ROTATED',
-        },
-      });
-
-      const tokens = await this.issuesTokenPair(
-        userType,
-        ownerId,
-        deviceId,
-        admin.role,
-        admin.permissions,
-        tokenFamily,
-      );
-      return { tokens, UserType: userType, ownerId };
-    } else {
-      const customer = await this.prisma.customer.findFirst({
-        where: { id: ownerId, isActive: true, deletedAt: null },
-        select: { id: true },
-      });
-      if (!customer)
-        throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_DISABLED);
-
-      await this.prisma.authToken.update({
-        where: { id: tokenRecord.id },
-        data: {
-          revoked: true,
-          revokedAt: new Date(),
-          revokedReason: 'ROTATED',
-        },
-      });
-
-      const tokens = await this.issuesTokenPair(
-        userType,
-        ownerId,
-        deviceId,
-        undefined,
-        undefined,
-        tokenFamily,
-      );
-      return { tokens, UserType: userType, ownerId };
-    }
+    return { tokens, UserType: userType, ownerId };
   }
 
+  // ─── Token revocation ───────────────────────────────────────
   async revokeToken(rawRefreshToken: string): Promise<void> {
     const hashedToken = this.hashToken(rawRefreshToken);
+
     await this.prisma.authToken.updateMany({
       where: { tokenHash: hashedToken, revoked: false },
       data: {
@@ -329,16 +269,6 @@ export class TokenService {
         revokedAt: new Date(),
         revokedReason: 'LOGOUT',
       },
-    });
-  }
-
-  async revokeDeviceTokens(
-    deviceDbId: string,
-    reason = 'LOGOUT',
-  ): Promise<void> {
-    await this.prisma.authToken.updateMany({
-      where: { id: deviceDbId },
-      data: { revoked: true, revokedAt: new Date(), revokedReason: reason },
     });
   }
 
@@ -365,6 +295,58 @@ export class TokenService {
     });
   }
 
+  // ─── Access token validation helper ─────────────────────────
+  async validate(payload: JwtPayload) {
+    const { sub, type, deviceId, role, permissions } = payload;
+
+    const device = await this.prisma.device.findFirst({
+      where: {
+        id: deviceId,
+        isActive: true,
+        revokedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!device) {
+      throw new UnauthorizedException(AUTH_ERROR.DEVICE_REVOKED);
+    }
+
+    const authToken = await this.prisma.authToken.findFirst({
+      where: {
+        deviceId,
+        revoked: false,
+      },
+    });
+
+    if (!authToken) {
+      throw new UnauthorizedException(AUTH_ERROR.TOKEN_REVOKED);
+    }
+
+    if (type === 'ADMIN') {
+      const admin = await this.prisma.admin.findFirst({
+        where: { id: sub, isActive: true, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (!admin) {
+        throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_DISABLED);
+      }
+    } else {
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: sub, isActive: true, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (!customer) {
+        throw new UnauthorizedException(AUTH_ERROR.ACCOUNT_DISABLED);
+      }
+    }
+
+    return { id: sub, type, deviceId, role, permissions };
+  }
+
+  // ─── Cleanup job ────────────────────────────────────────────
   async cleanupExpiredTokens(): Promise<number> {
     const result = await this.prisma.authToken.deleteMany({
       where: {
@@ -372,12 +354,16 @@ export class TokenService {
           { expiresAt: { lt: new Date() } },
           {
             revoked: true,
-            revokedAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+            revokedAt: {
+              lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            },
           },
         ],
       },
     });
+
     this.logger.log(`Cleaned up ${result.count} expired auth tokens`);
+
     return result.count;
   }
 }

@@ -6,20 +6,37 @@ enum AdminRole {
 }
 
 enum AdminPermission {
-  MANAGE_USERS
-  VIEW_USERS
-  MANAGE_PRODUCTS
-  VIEW_PRODUCTS
-  MANAGE_ORDERS
-  VIEW_ORDERS
-  MANAGE_PAYMENTS
-  VIEW_PAYMENTS
-  VIEW_REPORTS
-  EXPORT_DATA
-  MANAGE_SETTINGS
-  MANAGE_COUPONS
-  MANAGE_SHIPPING
-  MANAGE_DELIVERY
+  // Product management
+  PRODUCT_CREATE
+  PRODUCT_READ
+  PRODUCT_UPDATE
+  PRODUCT_DELETE
+  PRODUCT_BULK_EDIT
+
+  // Order management
+  ORDER_READ
+  ORDER_UPDATE_STATUS
+  ORDER_CANCEL
+  ORDER_REFUND
+
+  // Inventory
+  INVENTORY_MANAGE
+  INVENTORY_VIEW
+
+  // Finance
+  FINANCE_VIEW
+  TRANSACTION_VIEW
+  COUPON_MANAGE
+
+  // Admin management
+  ADMIN_CREATE
+  ADMIN_EDIT
+  ADMIN_DELETE
+  ADMIN_PERMISSIONS
+
+  // Settings
+  SETTINGS_MANAGE
+  LOGS_VIEW
 }
 
 enum AuthUserType {
@@ -73,6 +90,7 @@ enum PublishStatus {
 enum OrderStatus {
   PENDING
   PROCESSING
+  CONFIRMED
   COMPLETED
   DECLINED
   CANCELED
@@ -92,6 +110,31 @@ enum PaymentMethod {
   STRIPE
   PAYPAL
 }
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum InventoryReason {
+  ORDER_PLACED
+  ORDER_CANCELED
+  MANUAL_ADJUSTMENT
+  STOCK_CORRECTION
+  REFUND
+  DAMAGED
+  LOSS
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
 
 enum ShippingMethod {
   FREE_SHIPPING
@@ -156,4 +199,12 @@ enum TransactionStatus {
   FAILED        // Payment failed
   REFUNDED      // Full refund processed
   PARTIALLY_REFUNDED // Partial refund processed
+}
+
+
+enum ShippingRuleType {
+  FLAT // Fixed cost per order
+  WEIGHT_BASED // Base + per kg
+  PRICE_BASED // Free above X, else Y
+  ITEM_BASED // Cost per item
 }

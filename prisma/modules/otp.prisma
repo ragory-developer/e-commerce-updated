@@ -1,0 +1,19 @@
+model OTP {
+  id String @id @default(cuid())
+
+  phone     String  @db.VarChar(20)
+  code      String  @db.VarChar(10)
+  type      String  // 'PHONE_VERIFICATION', 'LOGIN', 'PASSWORD_RESET'
+  attempts  Int     @default(0)
+
+  verified   Boolean   @default(false)
+  verifiedAt DateTime? @map("verified_at")
+  expiresAt  DateTime  @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone])
+  @@index([type])
+  @@index([expiresAt])
+  @@map("otps")
+}

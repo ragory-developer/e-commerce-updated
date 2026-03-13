@@ -1,6 +1,3 @@
-// ─── UPDATED Address model ───────────────────────────────────
-// Now supports BD location hierarchy while keeping backward compat
-
 model Address {
   id String @id @default(cuid())
 
@@ -10,17 +7,19 @@ model Address {
   label        String? @db.VarChar(50) // "Home", "Office"
   fullName     String  @map("full_name") @db.VarChar(191)
   phone        String  @db.VarChar(50)
-  addressLine  String  @map("address_line") @db.Text  // Full street address
+  addressLine  String  @map("address_line") @db.Text
 
   // BD Location refs (nullable for backward compat)
   divisionId String? @map("division_id")
   cityId     String? @map("city_id")
-  areaId     String? @map("area_id")
+
+  areaId String? @map("area_id")
+  area   Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
 
   // Denormalized for display + order snapshot (so we don't need joins)
   division   String  @db.VarChar(100) // "Dhaka"
   city       String  @db.VarChar(100) // "Dhaka"
-  area       String  @db.VarChar(150) // "Dhanmondi"
+
   postalCode String  @map("postal_code") @db.VarChar(10) // "1205"
   country    String  @default("BD") @db.VarChar(50)
 

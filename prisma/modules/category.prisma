@@ -9,22 +9,16 @@ model Category {
   slug        String  @unique @db.VarChar(191)
   description String? @db.Text
   image       String? @db.VarChar(191)
-  icon        String? @db.VarChar(191)
 
   // Hierarchical fields
-  position Int     @default(0)
-  depth    Int     @default(0)
-  path     String? @db.VarChar(1000) // e.g., "electronics/mobiles/smartphones"
-  pathIds  String? @map("path_ids") @db.VarChar(1000) // e.g., "id1,id2,id3" - CHANGED from Json to String
-
-  // Add isActive field
+  path     String? @db.VarChar(1000)
+  pathIds  String? @map("path_ids") @db.VarChar(1000)
   isActive Boolean @default(true) @map("is_active")
 
   translations Json? @db.JsonB
   seo          Json? @db.JsonB
 
   products         ProductCategory[]
-  couponCategories CouponCategory[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
