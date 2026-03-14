@@ -601,15 +601,6 @@ export class ProductService {
     const where: Prisma.ProductWhereInput = {
       deletedAt: null,
 
-      // Ensure product has at least one valid category
-      categories: {
-        some: {
-          category: {
-            deletedAt: null,
-          },
-        },
-      },
-
       ...(dto.search && {
         OR: [
           { name: { contains: dto.search, mode: 'insensitive' as const } },
@@ -617,21 +608,32 @@ export class ProductService {
         ],
       }),
 
-      ...(dto.brandId && { brandId: dto.brandId }),
-      ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      ...(dto.inStock !== undefined && { inStock: dto.inStock }),
+      ...(dto.brandId && {
+        brandId: dto.brandId,
+      }),
+
+      ...(dto.isActive !== undefined && {
+        isActive: dto.isActive,
+      }),
+
+      ...(dto.inStock !== undefined && {
+        inStock: dto.inStock,
+      }),
 
       ...(dto.categoryId && {
         categories: {
           some: {
             categoryId: dto.categoryId,
-            category: { deletedAt: null },
           },
         },
       }),
 
       ...(dto.tagId && {
-        tags: { some: { tagId: dto.tagId } },
+        tags: {
+          some: {
+            tagId: dto.tagId,
+          },
+        },
       }),
 
       // Price range filter
