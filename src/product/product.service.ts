@@ -39,8 +39,15 @@ const PRODUCT_FULL_INCLUDE = {
   brand: { select: { id: true, name: true, slug: true } },
   taxClass: { select: { id: true, name: true } },
   categories: {
+    where: {
+      category: {
+        deletedAt: null,
+      },
+    },
     include: {
-      category: { select: { id: true, name: true, slug: true } },
+      category: {
+        select: { id: true, name: true, slug: true },
+      },
     },
   },
   tags: {
@@ -121,8 +128,15 @@ const PRODUCT_SUMMARY_SELECT = {
   updatedAt: true,
   brand: { select: { id: true, name: true, slug: true } },
   categories: {
+    where: {
+      category: {
+        deletedAt: null,
+      },
+    },
     select: {
-      category: { select: { id: true, name: true, slug: true } },
+      category: {
+        select: { id: true, name: true, slug: true },
+      },
     },
   },
   tags: {
@@ -586,32 +600,49 @@ export class ProductService {
   async findAll(dto: ListProductsDto) {
     const where: Prisma.ProductWhereInput = {
       deletedAt: null,
+
+      // Ensure product has at least one valid category
+      categories: {
+        some: {
+          category: {
+            deletedAt: null,
+          },
+        },
+      },
+
       ...(dto.search && {
         OR: [
           { name: { contains: dto.search, mode: 'insensitive' as const } },
           { sku: { contains: dto.search, mode: 'insensitive' as const } },
         ],
       }),
+
       ...(dto.brandId && { brandId: dto.brandId }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       ...(dto.inStock !== undefined && { inStock: dto.inStock }),
+
       ...(dto.categoryId && {
-        categories: { some: { categoryId: dto.categoryId } },
+        categories: {
+          some: {
+            categoryId: dto.categoryId,
+            category: { deletedAt: null },
+          },
+        },
       }),
+
       ...(dto.tagId && {
         tags: { some: { tagId: dto.tagId } },
       }),
+
       // Price range filter
       ...((dto.priceMin !== undefined || dto.priceMax !== undefined) && {
         OR: [
-          // Match products with direct price
           {
             price: {
               ...(dto.priceMin !== undefined && { gte: dto.priceMin }),
               ...(dto.priceMax !== undefined && { lte: dto.priceMax }),
             },
           },
-          // Match products whose variants fall in the price range
           {
             variants: {
               some: {
@@ -629,7 +660,7 @@ export class ProductService {
 
     const orderBy = this.buildOrderBy(dto.sortBy);
 
-    // ─── DETAIL MODE: same shape as findOne ───────────────────
+    // ─── DETAIL MODE ─────────────────────────
     if (dto.detail) {
       const [products, total] = await Promise.all([
         this.prisma.product.findMany({
@@ -642,7 +673,6 @@ export class ProductService {
         this.prisma.product.count({ where }),
       ]);
 
-      // Attach media to each product (same as findOne)
       const data = await Promise.all(
         products.map((product) => this.attachMedia(product)),
       );
@@ -659,7 +689,7 @@ export class ProductService {
       };
     }
 
-    // ─── SUMMARY MODE (default): enhanced lightweight list ────
+    // ─── SUMMARY MODE ───────────────────────
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
