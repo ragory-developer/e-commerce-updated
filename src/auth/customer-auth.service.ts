@@ -32,6 +32,12 @@ import { PasswordValidator } from './auth.validators';
 
 @Injectable()
 export class CustomerAuthService {
+  requestPhoneVerification(dto: VerifyPhoneRequestDto, ip: string | undefined, ua: string | undefined) {
+    throw new Error('Method not implemented.');
+  }
+  confirmPhoneVerification(dto: VerifyPhoneConfirmDto) {
+    throw new Error('Method not implemented.');
+  }
   private readonly logger = new Logger(CustomerAuthService.name);
 
   constructor(
@@ -104,6 +110,108 @@ export class CustomerAuthService {
   }
 
   // ─── Step 3: Complete Registration ────────────────────────────
+  // async completeRegistration(
+  //   dto: CustomerCompleteRegistrationDto,
+  //   deviceInfo: DeviceInfo,
+  // ): Promise<AuthResult> {
+  //   const tokenPayload = this.tokenService.verifyRegistrationToken(
+  //     dto.registrationToken,
+  //   );
+
+  //   const phone = tokenPayload.sub;
+
+  //   const existingPhone = await this.prisma.customer.findFirst({
+  //     where: { phone, isGuest: false, deletedAt: null },
+  //   });
+
+  //   if (existingPhone)
+  //     throw new ConflictException(AUTH_ERROR.CUSTOMER_PHONE_TAKEN);
+
+  //   if (dto.email) {
+  //     const existingEmail = await this.prisma.customer.findFirst({
+  //       where: { email: dto.email.toLowerCase(), deletedAt: null },
+  //     });
+
+  //     if (existingEmail)
+  //       throw new ConflictException(AUTH_ERROR.CUSTOMER_EMAIL_TAKEN);
+  //   }
+
+  //   // Validate password strength
+  //   PasswordValidator.validate(dto.password);
+
+  //   const hashedPassword = await bcrypt.hash(
+  //     dto.password,
+  //     AUTH_CONFIG.BCRYPT_ROUNDS,
+  //   );
+
+  //   const guestAccount = await this.prisma.customer.findFirst({
+  //     where: { phone, isGuest: true, deletedAt: null },
+  //     select: { id: true },
+  //   });
+
+  //   let customerId: string;
+
+  //   if (guestAccount) {
+  //     const updated = await this.prisma.customer.update({
+  //       where: { id: guestAccount.id },
+  //       data: {
+  //         firstName: dto.firstName.trim(),
+  //         lastName: dto.lastName.trim(),
+  //         email: dto.email?.toLowerCase() ?? null,
+  //         password: hashedPassword,
+  //         isGuest: false,
+  //         phoneVerified: true,
+  //         isActive: true,
+  //       },
+  //       select: { id: true },
+  //     });
+
+  //     customerId = updated.id;
+  //   } else {
+  //     const created = await this.prisma.customer.create({
+  //       data: {
+  //         firstName: dto.firstName.trim(),
+  //         lastName: dto.lastName.trim(),
+  //         phone,
+  //         email: dto.email?.toLowerCase() ?? null,
+  //         password: hashedPassword,
+  //         isGuest: false,
+  //         phoneVerified: true,
+  //         isActive: true,
+  //       },
+  //       select: { id: true },
+  //     });
+
+  //     customerId = created.id;
+  //   }
+
+  //   if (dto.address) {
+  //     await this.prisma.address.create({
+  //       data: {
+  //         customerId,
+  //         label: dto.address.label ?? 'Home',
+  //         address: dto.address.address,
+  //         descriptions: dto.address.descriptions ?? '',
+  //         city: dto.address.city,
+  //         state: dto.address.state,
+  //         road: dto.address.road ?? '',
+  //         zip: dto.address.zip,
+  //         country: dto.address.country,
+  //         isDefault: true,
+  //         createdBy: customerId,
+  //       },
+  //     });
+  //   }
+
+  //   this.logger.log(`Customer registered: ${phone}`);
+
+  //   return this.tokenService.loginAndIssueTokens(
+  //     'CUSTOMER',
+  //     customerId,
+  //     deviceInfo,
+  //   );
+  // }
+  // src/auth/customer-auth.service.ts
   async completeRegistration(
     dto: CustomerCompleteRegistrationDto,
     deviceInfo: DeviceInfo,
@@ -114,10 +222,10 @@ export class CustomerAuthService {
 
     const phone = tokenPayload.sub;
 
+    // ✅ Check duplicates
     const existingPhone = await this.prisma.customer.findFirst({
       where: { phone, isGuest: false, deletedAt: null },
     });
-
     if (existingPhone)
       throw new ConflictException(AUTH_ERROR.CUSTOMER_PHONE_TAKEN);
 
@@ -125,12 +233,11 @@ export class CustomerAuthService {
       const existingEmail = await this.prisma.customer.findFirst({
         where: { email: dto.email.toLowerCase(), deletedAt: null },
       });
-
       if (existingEmail)
         throw new ConflictException(AUTH_ERROR.CUSTOMER_EMAIL_TAKEN);
     }
 
-    // Validate password strength
+    // ✅ Validate password
     PasswordValidator.validate(dto.password);
 
     const hashedPassword = await bcrypt.hash(
@@ -138,64 +245,70 @@ export class CustomerAuthService {
       AUTH_CONFIG.BCRYPT_ROUNDS,
     );
 
-    const guestAccount = await this.prisma.customer.findFirst({
-      where: { phone, isGuest: true, deletedAt: null },
-      select: { id: true },
+    // ✅ TRANSACTION: Ensure atomicity
+    const customerId = await this.prisma.$transaction(async (tx) => {
+      const guestAccount = await tx.customer.findFirst({
+        where: { phone, isGuest: true, deletedAt: null },
+        select: { id: true },
+      });
+
+      let custId: string;
+
+      if (guestAccount) {
+        // ✅ Upgrade guest
+        const updated = await tx.customer.update({
+          where: { id: guestAccount.id },
+          data: {
+            firstName: dto.firstName.trim(),
+            lastName: dto.lastName.trim(),
+            email: dto.email?.toLowerCase() ?? null,
+            password: hashedPassword,
+            isGuest: false,
+            phoneVerified: true,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        custId = updated.id;
+      } else {
+        // ✅ Create new customer
+        const created = await tx.customer.create({
+          data: {
+            firstName: dto.firstName.trim(),
+            lastName: dto.lastName.trim(),
+            phone,
+            email: dto.email?.toLowerCase() ?? null,
+            password: hashedPassword,
+            isGuest: false,
+            phoneVerified: true,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        custId = created.id;
+      }
+
+      // ✅ Create address in same transaction
+      if (dto.address) {
+        await tx.address.create({
+          data: {
+            customerId: custId,
+            label: dto.address.label ?? 'Home',
+            address: dto.address.address,
+            descriptions: dto.address.descriptions ?? '',
+            city: dto.address.city,
+            state: dto.address.state,
+            road: dto.address.road ?? '',
+            zip: dto.address.zip,
+            country: dto.address.country,
+            isDefault: true,
+            createdBy: custId,
+          },
+        });
+      }
+
+      return custId;
     });
-
-    let customerId: string;
-
-    if (guestAccount) {
-      const updated = await this.prisma.customer.update({
-        where: { id: guestAccount.id },
-        data: {
-          firstName: dto.firstName.trim(),
-          lastName: dto.lastName.trim(),
-          email: dto.email?.toLowerCase() ?? null,
-          password: hashedPassword,
-          isGuest: false,
-          phoneVerified: true,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-
-      customerId = updated.id;
-    } else {
-      const created = await this.prisma.customer.create({
-        data: {
-          firstName: dto.firstName.trim(),
-          lastName: dto.lastName.trim(),
-          phone,
-          email: dto.email?.toLowerCase() ?? null,
-          password: hashedPassword,
-          isGuest: false,
-          phoneVerified: true,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-
-      customerId = created.id;
-    }
-
-    if (dto.address) {
-      await this.prisma.address.create({
-        data: {
-          customerId,
-          label: dto.address.label ?? 'Home',
-          address: dto.address.address,
-          descriptions: dto.address.descriptions ?? '',
-          city: dto.address.city,
-          state: dto.address.state,
-          road: dto.address.road ?? '',
-          zip: dto.address.zip,
-          country: dto.address.country,
-          isDefault: true,
-          createdBy: customerId,
-        },
-      });
-    }
 
     this.logger.log(`Customer registered: ${phone}`);
 

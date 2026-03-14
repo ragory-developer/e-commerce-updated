@@ -1125,4 +1125,255 @@ export class ProductService {
     this.logger.log(`Variant updated: ${variantId} by ${updatedBy}`);
     return this.findOne(productId);
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: QUICK VIEW API (for modal/popup)
+  // ══════════════════════════════════════════════════════════════
+  async getQuickView(slug: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { slug, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        shortDescription: true,
+        price: true,
+        specialPrice: true,
+        specialPriceType: true,
+        specialPriceStart: true,
+        specialPriceEnd: true,
+        images: true,
+        inStock: true,
+        averageRating: true,
+        reviewCount: true,
+        brand: {
+          select: { id: true, name: true, slug: true },
+        },
+        categories: {
+          select: {
+            category: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+          take: 1,
+        },
+        variants: {
+          where: { deletedAt: null, isActive: true },
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            price: true,
+            specialPrice: true,
+            inStock: true,
+            qty: true,
+            isDefault: true,
+          },
+          orderBy: { position: 'asc' },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    // Check flash sale
+    const flashSale = await this.flashSaleService.checkFlashSaleForProduct(
+      product.id,
+    );
+
+    return {
+      ...product,
+      flashSale,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: CHECK STOCK AVAILABILITY
+  // ══════════════════════════════════════════════════════════════
+  async checkStock(productId: string, variantId?: string) {
+    if (variantId) {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { id: variantId, productId, deletedAt: null },
+        select: {
+          id: true,
+          qty: true,
+          reservedQty: true,
+          inStock: true,
+          manageStock: true,
+          lowStockThreshold: true,
+        },
+      });
+
+      if (!variant) {
+        throw new NotFoundException('Variant not found');
+      }
+
+      const available = (variant.qty || 0) - (variant.reservedQty || 0);
+
+      return {
+        inStock: variant.inStock,
+        manageStock: variant.manageStock,
+        quantity: variant.qty,
+        reserved: variant.reservedQty,
+        available,
+        isLowStock: variant.lowStockThreshold
+          ? available <= variant.lowStockThreshold
+          : false,
+      };
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, deletedAt: null },
+      select: {
+        id: true,
+        qty: true,
+        inStock: true,
+        manageStock: true,
+        lowStockThreshold: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return {
+      inStock: product.inStock,
+      manageStock: product.manageStock,
+      quantity: product.qty,
+      reserved: 0,
+      available: product.qty || 0,
+      isLowStock: product.lowStockThreshold
+        ? (product.qty || 0) <= product.lowStockThreshold
+        : false,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET RELATED PRODUCTS
+  // ══════════════════════════════════════════════════════════════
+  async getRelatedProducts(productId: string, limit: number = 8) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, deletedAt: null },
+      select: {
+        relatedTo: {
+          include: {
+            relatedProduct: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                price: true,
+                specialPrice: true,
+                images: true,
+                inStock: true,
+                averageRating: true,
+                reviewCount: true,
+              },
+            },
+          },
+          orderBy: { position: 'asc' },
+          take: limit,
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return product.relatedTo.map((r) => r.relatedProduct);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET FEATURED PRODUCTS
+  // ══════════════════════════════════════════════════════════════
+  async getFeaturedProducts(limit: number = 10) {
+    return this.prisma.product.findMany({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        isFeatured: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        specialPrice: true,
+        images: true,
+        inStock: true,
+        averageRating: true,
+        reviewCount: true,
+        brand: {
+          select: { id: true, name: true, slug: true },
+        },
+      },
+      orderBy: [
+        { averageRating: 'desc' },
+        { reviewCount: 'desc' },
+        { createdAt: 'desc' },
+      ],
+      take: limit,
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: UPDATE PRODUCT RATING (called after review)
+  // ══════════════════════════════════════════════════════════════
+  async updateProductRating(productId: string): Promise<void> {
+    const result = await this.prisma.review.aggregate({
+      where: {
+        productId,
+        isApproved: true,
+        deletedAt: null,
+      },
+      _avg: { rating: true },
+      _count: { id: true },
+    });
+
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        averageRating: result._avg.rating
+          ? new Prisma.Decimal(result._avg.rating.toFixed(2))
+          : null,
+        reviewCount: result._count.id,
+      },
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: UPDATE PRODUCT PRICE RANGE (called after variant changes)
+  // ══════════════════════════════════════════════════════════════
+  async updateProductPriceRange(productId: string): Promise<void> {
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        productId,
+        deletedAt: null,
+        isActive: true,
+      },
+      select: { price: true },
+    });
+
+    if (variants.length === 0) return;
+
+    const prices = variants
+      .map((v) => v.price)
+      .filter((p): p is Prisma.Decimal => p !== null);
+
+    if (prices.length === 0) return;
+
+    const minPrice = prices.reduce((min, p) => (p.lessThan(min) ? p : min));
+    const maxPrice = prices.reduce((max, p) => (p.greaterThan(max) ? p : max));
+
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { minPrice, maxPrice },
+    });
+  }
+}
 }

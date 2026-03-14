@@ -14,6 +14,7 @@ import {
   UploadedFiles,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -35,6 +36,27 @@ import {
   ListMediaDto,
 } from './dto';
 
+const imageFileFilter = (req, file, callback) => {
+  const allowedMimes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+  ];
+
+  if (!allowedMimes.includes(file.mimetype)) {
+    return callback(
+      new BadRequestException(
+        `File type ${file.mimetype} not allowed. Only images allowed.`,
+      ),
+      false,
+    );
+  }
+
+  callback(null, true);
+};
+
 @ApiTags('Media')
 @ApiBearerAuth('access-token')
 @Controller('media')
@@ -47,6 +69,14 @@ export class MediaController {
 
   @Post('upload')
   @ApiOperation({ summary: 'Upload a single file' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      fileFilter: imageFileFilter,
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+      },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -64,6 +94,10 @@ export class MediaController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: RequestUser,
   ) {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
     const data = await this.mediaService.uploadSingle(file, user.id);
     return { message: 'File uploaded successfully', data };
   }

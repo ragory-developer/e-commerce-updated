@@ -24,5 +24,7 @@ model VerificationOtp {
   @@index([channel, purpose])
   @@index([expiresAt])
   @@index([verified])
+  @@index([target, purpose, verified, expiresAt])
+  @@index([verified, verifiedAt])
   @@map("verification_otps")
 }

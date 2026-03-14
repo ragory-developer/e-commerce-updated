@@ -1,31 +1,34 @@
 model FlashSale {
   id String @id @default(cuid())
 
-  name        String @db.VarChar(191)
+  name        String  @db.VarChar(191)
   description String? @db.Text
+
+  // Sale timing
+  startTime DateTime @map("start_time") // NEW: Renamed from validFrom
+  endTime   DateTime @map("end_time")   // NEW: Renamed from validTo
+
+  // Status
+  status FlashSaleStatus @default(SCHEDULED) // NEW: Explicit status
 
   discountType  String // 'FIXED', 'PERCENT'
   discountValue Decimal @map("discount_value") @db.Decimal(12, 2)
 
-  validFrom DateTime @map("valid_from")
-  validTo   DateTime @map("valid_to")
-
   translations Json? @db.JsonB
-
-  isActive  Boolean @default(true) @map("is_active")
+  isActive Boolean @default(true) @map("is_active")
 
   products FlashSaleProduct[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
   createdBy String? @map("created_by")
   updatedBy String? @map("updated_by")
-
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([status, startTime, endTime]) // NEW: For active sales queries
+  @@index([isActive, status]) // NEW
   @@map("flash_sales")
 }

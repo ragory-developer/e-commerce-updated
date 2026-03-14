@@ -198,4 +198,62 @@ export class ProductController {
     );
     return { message: 'Variant updated successfully', data };
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: QUICK VIEW
+  // ══════════════════════════════════════════════════════════════
+  @Get('quick-view/:slug')
+  @Public()
+  @ApiParam({ name: 'slug', description: 'Product slug' })
+  @ApiOperation({ summary: 'Get product quick view data (for modal/popup)' })
+  async getQuickView(@Param('slug') slug: string) {
+    const data = await this.productService.getQuickView(slug);
+    return { message: 'Quick view data retrieved', data };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: CHECK STOCK
+  // ══════════════════════════════════════════════════════════════
+  @Get(':id/stock')
+  @Public()
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @ApiQuery({ name: 'variantId', required: false })
+  @ApiOperation({ summary: 'Check product/variant stock availability' })
+  async checkStock(
+    @Param('id') id: string,
+    @Query('variantId') variantId?: string,
+  ) {
+    const data = await this.productService.checkStock(id, variantId);
+    return { message: 'Stock information retrieved', data };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET RELATED PRODUCTS
+  // ══════════════════════════════════════════════════════════════
+  @Get(':id/related')
+  @Public()
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @ApiQuery({ name: 'limit', required: false, example: 8 })
+  @ApiOperation({ summary: 'Get related products' })
+  async getRelated(@Param('id') id: string, @Query('limit') limit?: number) {
+    const data = await this.productService.getRelatedProducts(
+      id,
+      limit ? Number(limit) : 8,
+    );
+    return { message: 'Related products retrieved', data };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET FEATURED PRODUCTS
+  // ══════════════════════════════════════════════════════════════
+  @Get('featured')
+  @Public()
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiOperation({ summary: 'Get featured products' })
+  async getFeatured(@Query('limit') limit?: number) {
+    const data = await this.productService.getFeaturedProducts(
+      limit ? Number(limit) : 10,
+    );
+    return { message: 'Featured products retrieved', data };
+  }
 }

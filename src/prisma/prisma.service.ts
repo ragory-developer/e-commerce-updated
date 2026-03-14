@@ -87,10 +87,6 @@ export class PrismaService
             if (!SOFT_DELETE_MODELS.has(model)) {
               return query(args);
             }
-            // args.where = {
-            //   ...args.where,
-            //   deletedAt: null,
-            // } as any;
             return query(args);
           },
 
@@ -128,14 +124,44 @@ export class PrismaService
             }
             return query(args);
           },
+        },
 
-          // ─── DELETE Operations: Not intercepted ───────────────────
-          // Prisma v6 extensions cannot safely redirect delete to update.
-          // Instead, use the softDelete() helper method in service layer:
-          //   await this.
-          // ('product', id, deletedByAdminId)
-          // instead of:
-          //   await this.prisma.product.delete({ where: { id } })
+        // ─────────────────────────────────────────────
+        // MEDIA REFERENCE COUNT EXTENSION
+        // ─────────────────────────────────────────────
+        entityMedia: {
+          async delete({ args, query }) {
+            const deleted = await query(args);
+
+            if (deleted) {
+              await this.media.update({
+                where: { id: deleted.mediaId },
+                data: { referenceCount: { decrement: 1 } },
+              });
+            }
+
+            return deleted;
+          },
+
+          async deleteMany({ args, query }) {
+            const toDelete = await this.entityMedia.findMany({
+              where: args.where,
+              select: { mediaId: true },
+            });
+
+            const result = await query(args);
+
+            for (const item of toDelete) {
+              await this.media
+                .update({
+                  where: { id: item.mediaId },
+                  data: { referenceCount: { decrement: 1 } },
+                })
+                .catch(() => {});
+            }
+
+            return result;
+          },
         },
       },
     }) as unknown as this;

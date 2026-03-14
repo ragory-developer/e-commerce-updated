@@ -70,6 +70,11 @@ export const AUTH_ERROR = {
   // ─── Device ───────────────────────────────────────────────────
   DEVICE_NOT_FOUND: 'Device not found or revoked',
   DEVICE_REVOKED: 'Device session has been revoked',
+
+  // ---------- GUEST --------------------------------------
+  CUSTOMER_IS_GUEST: 'This is a guest account. Please set a password to login.',
+  CUSTOMER_PHONE_NOT_VERIFIED: 'Phone number not verified',
+  CUSTOMER_EMAIL_NOT_VERIFIED: 'Email not verified',
 } as const;
 
 // JWT payload type identifier

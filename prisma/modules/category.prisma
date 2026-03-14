@@ -1,24 +1,33 @@
 model Category {
   id String @id @default(cuid())
 
-  parentId String?   @map("parent_id")
-  parent   Category? @relation("CategoryTree", fields: [parentId], references: [id])
+  parentId String?    @map("parent_id")
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
   children Category[] @relation("CategoryTree")
 
   name        String  @db.VarChar(191)
   slug        String  @unique @db.VarChar(191)
   description String? @db.Text
-  image       String? @db.VarChar(191)
+
+  // Enhanced media support
+  image        String? @db.VarChar(191)
+  icon         String? @db.VarChar(191) // NEW: Category icon
+  bannerImage  String? @map("banner_image") @db.VarChar(500) // NEW: Category banner
 
   // Hierarchical fields
   path     String? @db.VarChar(1000)
   pathIds  String? @map("path_ids") @db.VarChar(1000)
+  depth    Int     @default(0) // NEW: Hierarchy depth
   isActive Boolean @default(true) @map("is_active")
+  position Int     @default(0) // NEW: Manual ordering
 
-  translations Json? @db.JsonB
-  seo          Json? @db.JsonB
+  // SEO fields
+  metaTitle       String? @map("meta_title") @db.VarChar(255) // NEW
+  metaDescription String? @map("meta_description") @db.VarChar(500) // NEW
+  translations    Json?   @db.JsonB
+  seo             Json?   @db.JsonB
 
-  products         ProductCategory[]
+  products ProductCategory[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -35,5 +44,8 @@ model Category {
   @@index([path])
   @@index([pathIds])
   @@index([isActive])
+  @@index([depth]) // NEW
+  @@index([position]) // NEW
+  @@index([isActive, depth, position]) // NEW: Composite for listing
   @@map("categories")
 }

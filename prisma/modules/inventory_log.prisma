@@ -1,37 +1,40 @@
 model InventoryLog {
   id String @id @default(cuid())
 
-  productId       String  @map("product_id")
-  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  productVariantId String? @map("product_variant_id")
+  productVariantId String?         @map("product_variant_id")
   productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
 
-  sku              String? @db.VarChar(100)
+  sku String? @db.VarChar(100)
 
-  // Link to triggering order (null for manual adjustments, restocks)
+  // Link to triggering order
   orderId String? @map("order_id")
+
+  // NEW: Link to flash sale
+  flashSaleProductId String? @map("flash_sale_product_id")
 
   reason InventoryReason @default(MANUAL_ADJUSTMENT)
 
-  qtyBefore   Int @map("qty_before")
-  qtyChange   Int @map("qty_change")
-  qtyAfter    Int @map("qty_after")
+  qtyBefore Int @map("qty_before") // Renamed from stockBefore
+  qtyChange Int @map("qty_change") // Renamed from quantity
+  qtyAfter  Int @map("qty_after")  // Renamed from stockAfter
 
-  reference   String? @db.VarChar(100) // orderId, etc.
-  notes       String? @db.VarChar(500)
-  changedBy   String? @map("changed_by")
+  reference String? @db.VarChar(100)
+  notes     String? @db.VarChar(500)
+  changedBy String? @map("changed_by")
 
-  // Extra context: { "note": "Damaged in warehouse", "batchId": "B-001" }
   metadata Json? @db.JsonB
 
-  // IMMUTABLE — no updatedAt
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([productId])
   @@index([productVariantId])
   @@index([orderId])
+  @@index([flashSaleProductId]) // NEW
   @@index([reason])
   @@index([createdAt])
+  @@index([productId, createdAt]) // NEW: For product history
   @@map("inventory_logs")
 }

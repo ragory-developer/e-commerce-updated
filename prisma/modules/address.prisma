@@ -11,12 +11,11 @@ model Address {
 
   // BD Location refs (nullable for backward compat)
   divisionId String? @map("division_id")
-  division   Division?   @relation(fields: [divisionId], references: [id], onDelete: SetNull)
-  cityId     String? @map("city_id")
-  city   City?   @relation(fields: [cityId], references: [id], onDelete: SetNull)
-
+  division Division? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  cityId String? @map("city_id")
+  city City? @relation(fields: [cityId], references: [id], onDelete: SetNull)
   areaId String? @map("area_id")
-  area   Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  area Area? @relation(fields: [areaId], references: [id], onDelete: SetNull)
 
   postalCode String  @map("postal_code") @db.VarChar(10) // "1205"
   country    String  @default("BD") @db.VarChar(50)
@@ -35,5 +34,7 @@ model Address {
   @@index([areaId])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([customerId, isDefault])
+  @@index([customerId, deletedAt])
   @@map("addresses")
 }

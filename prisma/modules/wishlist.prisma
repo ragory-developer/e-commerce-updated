@@ -1,12 +1,13 @@
 model WishlistItem {
-  customerId String   @map("customer_id")
-  customer   Customer @relation(fields: [customerId], references: [id])
-  productId  String   @map("product_id")
-  product    Product  @relation(fields: [productId], references: [id])
+  id         String   @id @default(uuid())
+  // // customerId String   @map("customer_id")
+  // customer   Customer @relation(fields: [customerId], references: [id])
+  // productId  String   @map("product_id")
+  // product    Product  @relation(fields: [productId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@id([customerId, productId])
-  @@index([productId])
+  // @@id([customerId, productId])
+  // @@index([productId])
   @@map("wish_lists")
 }

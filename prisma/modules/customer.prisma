@@ -43,5 +43,9 @@ model Customer {
   @@index([email])
   @@index([isGuest])
   @@index([isActive, deletedAt])
+  @@index([phone, deletedAt])
+  @@index([email, deletedAt])
+  @@index([isGuest, deletedAt])
+
   @@map("customers")
 }

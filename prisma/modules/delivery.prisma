@@ -50,9 +50,14 @@ model OrderPackage {
   orderId String @map("order_id")
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  courierId String @map("courier_id")
+  courier Courier? @relation(fields: [courierId], references: [id])
+
   // Rider assignment (nullable until assigned)
   riderId String?        @map("rider_id")
   rider   DeliveryRider? @relation(fields: [riderId], references: [id], onDelete: SetNull)
+
+  //
 
   status         PackageStatus @default(CREATED)
   trackingNumber String?       @map("tracking_number") @db.VarChar(191)

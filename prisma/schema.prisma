@@ -12,6 +12,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
 // ========================================
 // MODULE:  ADDRESS.PRISMA
 // ========================================
@@ -22,22 +23,21 @@ model Address {
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  label       String? @db.VarChar(50) // "Home", "Office"
-  fullName    String  @map("full_name") @db.VarChar(191)
-  phone       String  @db.VarChar(50)
-  addressLine String  @map("address_line") @db.Text
+  label        String? @db.VarChar(50) // "Home", "Office"
+  fullName     String  @map("full_name") @db.VarChar(191)
+  phone        String  @db.VarChar(50)
+  addressLine  String  @map("address_line") @db.Text
 
   // BD Location refs (nullable for backward compat)
-  divisionId String?   @map("division_id")
-  division   Division? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
-  cityId     String?   @map("city_id")
-  city       City?     @relation(fields: [cityId], references: [id], onDelete: SetNull)
-
+  divisionId String? @map("division_id")
+  division Division? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  cityId String? @map("city_id")
+  city City? @relation(fields: [cityId], references: [id], onDelete: SetNull)
   areaId String? @map("area_id")
-  area   Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  area Area? @relation(fields: [areaId], references: [id], onDelete: SetNull)
 
-  postalCode String @map("postal_code") @db.VarChar(10) // "1205"
-  country    String @default("BD") @db.VarChar(50)
+  postalCode String  @map("postal_code") @db.VarChar(10) // "1205"
+  country    String  @default("BD") @db.VarChar(50)
 
   isDefault Boolean @default(false) @map("is_default")
 
@@ -53,8 +53,11 @@ model Address {
   @@index([areaId])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([customerId, isDefault])
+  @@index([customerId, deletedAt])
   @@map("addresses")
 }
+
 
 // ========================================
 // MODULE:  ADMIN.PRISMA
@@ -87,9 +90,9 @@ model Admin {
   lastLoginAt DateTime? @map("last_login_at")
   lastLoginIp String?   @map("last_login_ip") @db.VarChar(45)
 
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  createdBy String?   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
@@ -99,6 +102,7 @@ model Admin {
   @@index([deletedAt])
   @@map("admins")
 }
+
 
 // ========================================
 // MODULE:  API_KEY.PRISMA
@@ -158,6 +162,7 @@ model ApiKey {
   @@map("api_keys")
 }
 
+
 // ========================================
 // MODULE:  AREA.PRISMA
 // ========================================
@@ -169,7 +174,7 @@ model Area {
   city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
   name       String @db.VarChar(191) // e.g., "Dhanmondi", "Gulshan"
-  slug       String @unique
+  slug String @unique
   postalCode String @map("postal_code") @db.VarChar(10) // e.g., "1205"
 
   // position Int     @default(0)
@@ -181,8 +186,8 @@ model Area {
 
   addresses Address[]
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   @@unique([cityId, slug])
   @@index([cityId])
@@ -192,6 +197,7 @@ model Area {
   @@index([slug])
   @@map("areas")
 }
+
 
 // ========================================
 // MODULE:  ATTRIBUTE_VALUE.PRISMA
@@ -203,7 +209,7 @@ model AttributeValue {
   attributeId String    @map("attribute_id")
   attribute   Attribute @relation(fields: [attributeId], references: [id])
 
-  value String @db.VarChar(191)
+  value    String @db.VarChar(191)
 
   label    String? @db.VarChar(191)
   hexColor String? @map("hex_color") @db.VarChar(7)
@@ -227,6 +233,7 @@ model AttributeValue {
   @@map("attribute_values")
 }
 
+
 // ========================================
 // MODULE:  ATTRIBUTES.PRISMA
 // ========================================
@@ -237,9 +244,9 @@ model Attribute {
   attributeSetId String       @map("attribute_set_id")
   attributeSet   AttributeSet @relation(fields: [attributeSetId], references: [id])
 
-  name String        @db.VarChar(191)
-  slug String        @db.VarChar(191)
-  type AttributeType @default(TEXT)
+  name     String        @db.VarChar(191)
+  slug     String        @db.VarChar(191)
+  type     AttributeType @default(TEXT)
 
   translations Json? @db.JsonB
 
@@ -261,6 +268,7 @@ model Attribute {
   @@index([createdAt])
   @@map("attributes")
 }
+
 
 // ========================================
 // MODULE:  ATTRIBUTES_SET.PRISMA
@@ -285,6 +293,7 @@ model AttributeSet {
   @@index([deletedAt])
   @@map("attribute_sets")
 }
+
 
 // ========================================
 // MODULE:  AUDIT_LOG.PRISMA
@@ -315,6 +324,7 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+
 // ========================================
 // MODULE:  AUTH_TOKEN.PRISMA
 // ========================================
@@ -323,8 +333,8 @@ model AuthToken {
   id String @id @default(cuid())
 
   userType AuthUserType @map("user_type")
-  adminId  String?      @map("admin_id")
-  admin    Admin?       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  adminId String? @map("admin_id")
+  admin   Admin?  @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   customerId String?   @map("customer_id")
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -332,11 +342,11 @@ model AuthToken {
   deviceId String? @map("device_id")
   device   Device? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  tokenHash   String @map("token_hash") @db.VarChar(255)
+  tokenHash   String   @unique @map("token_hash") @db.VarChar(255)
   tokenFamily String @map("token_family") @db.VarChar(191)
 
   expiresAt DateTime @map("expires_at")
-  issuedAt  DateTime @default(now()) @map("issued_at")
+  issuedAt    DateTime @default(now()) @map("issued_at")
 
   revoked       Boolean   @default(false)
   revokedAt     DateTime? @map("revoked_at")
@@ -350,8 +360,13 @@ model AuthToken {
   @@index([tokenFamily])
   @@index([expiresAt])
   @@index([revoked])
+  @@index([tokenHash])
+  @@index([userType, adminId, revoked])
+  @@index([userType, customerId, revoked])
+  @@index([deviceId, revoked])
   @@map("auth_tokens")
 }
+
 
 // ========================================
 // MODULE:  BRAND.PRISMA
@@ -360,14 +375,14 @@ model AuthToken {
 model Brand {
   id String @id @default(cuid())
 
-  name         String  @db.VarChar(191)
-  slug         String  @unique @db.VarChar(191)
-  description  String? @db.Text
-  image        String? @db.VarChar(500)
+  name        String  @db.VarChar(191)
+  slug        String  @unique @db.VarChar(191)
+  description String? @db.Text
+  image       String? @db.VarChar(500)
   //! i18n translation JSON
-  translations Json?   @db.JsonB
+  translations Json? @db.JsonB
   // ! SEO
-  seo          Json?   @db.JsonB
+  seo Json? @db.JsonB
 
   product Product[]
 
@@ -386,6 +401,7 @@ model Brand {
   @@map("brands")
 }
 
+
 // ========================================
 // MODULE:  CATEGORY.PRISMA
 // ========================================
@@ -400,15 +416,24 @@ model Category {
   name        String  @db.VarChar(191)
   slug        String  @unique @db.VarChar(191)
   description String? @db.Text
-  image       String? @db.VarChar(191)
+
+  // Enhanced media support
+  image        String? @db.VarChar(191)
+  icon         String? @db.VarChar(191) // NEW: Category icon
+  bannerImage  String? @map("banner_image") @db.VarChar(500) // NEW: Category banner
 
   // Hierarchical fields
   path     String? @db.VarChar(1000)
   pathIds  String? @map("path_ids") @db.VarChar(1000)
+  depth    Int     @default(0) // NEW: Hierarchy depth
   isActive Boolean @default(true) @map("is_active")
+  position Int     @default(0) // NEW: Manual ordering
 
-  translations Json? @db.JsonB
-  seo          Json? @db.JsonB
+  // SEO fields
+  metaTitle       String? @map("meta_title") @db.VarChar(255) // NEW
+  metaDescription String? @map("meta_description") @db.VarChar(500) // NEW
+  translations    Json?   @db.JsonB
+  seo             Json?   @db.JsonB
 
   products ProductCategory[]
 
@@ -427,8 +452,12 @@ model Category {
   @@index([path])
   @@index([pathIds])
   @@index([isActive])
+  @@index([depth]) // NEW
+  @@index([position]) // NEW
+  @@index([isActive, depth, position]) // NEW: Composite for listing
   @@map("categories")
 }
+
 
 // ========================================
 // MODULE:  CITY.PRISMA
@@ -440,7 +469,7 @@ model City {
   divisionId String   @map("division_id")
   division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
 
-  name String @db.VarChar(191)
+  name   String @db.VarChar(191)
   slug String @unique
 
   isActive Boolean @default(true) @map("is_active")
@@ -448,8 +477,8 @@ model City {
   areas     Area[]
   addresses Address[]
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   @@unique([divisionId, name])
   @@index([divisionId])
@@ -458,6 +487,7 @@ model City {
   @@map("cities")
 }
 
+
 // ========================================
 // MODULE:  COUPON.PRISMA
 // ========================================
@@ -465,13 +495,13 @@ model City {
 model Coupon {
   id String @id @default(cuid())
 
-  name          String             @db.VarChar(191)
-  code          String             @unique @db.VarChar(50)
-  description   String?            @db.VarChar(500)
-  discountType  CouponDiscountType @default(PERCENT) @map("discount_type")
-  discountValue Decimal            @map("discount_value") @db.Decimal(12, 2)
+  name         String             @db.VarChar(191)
+  code         String             @unique @db.VarChar(50)
+  description   String? @db.VarChar(500)
+  discountType CouponDiscountType @default(PERCENT) @map("discount_type")
+  discountValue Decimal @map("discount_value") @db.Decimal(12, 2)
 
-  freeShipping Boolean @default(false) @map("free_shipping")
+  freeShipping Boolean            @default(false) @map("free_shipping")
 
   minOrderValue Decimal? @map("min_order_value") @db.Decimal(12, 2)
   maxOrderValue Decimal? @map("max_order_value") @db.Decimal(12, 2)
@@ -482,21 +512,22 @@ model Coupon {
   // Limits
   usageLimit     Int? @map("usage_limit")
   userUsageLimit Int? @map("user_usage_limit")
-  used           Int  @default(0)
+  used           Int @default(0)
 
   // Validity
   validFrom DateTime @map("valid_from")
   validTo   DateTime @map("valid_to")
 
   // Applicability
-  applicableToAll    Boolean @default(true) @map("applicable_to_all")
-  specificProductIds Json?   @map("specific_product_ids") @db.JsonB
+  applicableToAll   Boolean @default(true) @map("applicable_to_all")
+  specificProductIds Json? @map("specific_product_ids") @db.JsonB
 
-  isActive Boolean @default(true) @map("is_active")
+  isActive  Boolean   @default(true) @map("is_active")
+
 
   translations Json? @db.JsonB
 
-  products CouponProduct[]
+  products   CouponProduct[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -508,6 +539,7 @@ model Coupon {
   @@index([deletedAt])
   @@map("coupons")
 }
+
 
 // ========================================
 // MODULE:  COUPON_PRODUCT.PRISMA
@@ -525,6 +557,7 @@ model CouponProduct {
   @@map("coupon_products")
 }
 
+
 // ========================================
 // MODULE:  CURIER.PRISMA
 // ========================================
@@ -541,7 +574,7 @@ model Courier {
   apiKey  String? @map("api_key") @db.VarChar(255)
 
   trackingUrlTemplate String? @map("tracking_url_template") @db.VarChar(500)
-  apiConfig           Json?   @map("api_config") @db.JsonB
+  apiConfig Json? @map("api_config") @db.JsonB
 
   shippingRules ShippingRule[]
   orderPackages OrderPackage[] // packages assigned to this courier
@@ -559,6 +592,7 @@ model Courier {
   @@index([deletedAt])
   @@map("couriers")
 }
+
 
 // ========================================
 // MODULE:  CURRENCY_RATE.PRISMA
@@ -580,6 +614,7 @@ model CurrencyRate {
   @@map("currency_rates")
 }
 
+
 // ========================================
 // MODULE:  CUSTOMER.PRISMA
 // ========================================
@@ -590,13 +625,14 @@ model Customer {
   // Basic Info
   firstName String? @map("first_name") @db.VarChar(100)
   lastName  String? @map("last_name") @db.VarChar(100)
-  email     String? @unique @db.VarChar(255)
-  phone     String  @unique @db.VarChar(20)
-  password  String? @db.VarChar(255)
-  avatar    String?
+  email         String? @unique @db.VarChar(255)
+  phone         String  @unique @db.VarChar(20)
+  password String? @db.VarChar(255)
+  avatar String?
 
   emailVerified Boolean @default(false) @map("email_verified")
   phoneVerified Boolean @default(false) @map("phone_verified")
+
 
   loginAttempts Int       @default(0) @map("login_attempts")
   lockedUntil   DateTime? @map("locked_until")
@@ -616,21 +652,25 @@ model Customer {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  tokens        AuthToken[]
-  devices       Device[]       @relation("CustomerDevices")
-  addresses     Address[]
-  orders        Order[]
+  tokens    AuthToken[]
+  devices   Device[]       @relation("CustomerDevices")
+  addresses Address[]
+  orders    Order[]
   // carts     Cart[]
-  reviews       Review[]
+  reviews   Review[]
   // wishlist  WishlistItem[]
-  wishlistItems WishlistItem[]
 
   @@index([phone])
   @@index([email])
   @@index([isGuest])
   @@index([isActive, deletedAt])
+  @@index([phone, deletedAt])
+  @@index([email, deletedAt])
+  @@index([isGuest, deletedAt])
+
   @@map("customers")
 }
+
 
 // ========================================
 // MODULE:  DELIVERY.PRISMA
@@ -688,9 +728,14 @@ model OrderPackage {
   orderId String @map("order_id")
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  courierId String @map("courier_id")
+  courier Courier? @relation(fields: [courierId], references: [id])
+
   // Rider assignment (nullable until assigned)
   riderId String?        @map("rider_id")
   rider   DeliveryRider? @relation(fields: [riderId], references: [id], onDelete: SetNull)
+
+  //
 
   status         PackageStatus @default(CREATED)
   trackingNumber String?       @map("tracking_number") @db.VarChar(191)
@@ -733,8 +778,6 @@ model OrderPackage {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
-  courier   Courier?  @relation(fields: [courierId], references: [id])
-  courierId String?
 
   @@index([orderId])
   @@index([riderId])
@@ -744,6 +787,7 @@ model OrderPackage {
   @@index([deletedAt])
   @@map("order_packages")
 }
+
 
 // ========================================
 // MODULE:  DELIVERY_ZONE.PRISMA
@@ -756,8 +800,8 @@ model DeliveryZone {
   slug String @unique @db.VarChar(100)
 
   // One zone has many areas (via Area.deliveryZoneId)
-  areas         Area[]
-  orders        Order[]
+  areas Area[]
+  orders Order[]
   shippingRules ShippingRule[]
 
   isActive Boolean @default(true) @map("is_active")
@@ -771,6 +815,7 @@ model DeliveryZone {
   @@index([deletedAt])
   @@map("delivery_zones")
 }
+
 
 // ========================================
 // MODULE:  DEVICE.PRISMA
@@ -789,6 +834,7 @@ model Device {
   customerId String?   @map("customer_id")
   customer   Customer? @relation("CustomerDevices", fields: [customerId], references: [id], onDelete: Cascade)
 
+
   deviceId   String  @map("device_id") @db.VarChar(191)
   deviceName String? @map("device_name") @db.VarChar(191)
   deviceType String? @map("device_type") @db.VarChar(50)
@@ -800,9 +846,12 @@ model Device {
   lastActiveAt DateTime  @default(now()) @map("last_active_at")
   revokedAt    DateTime? @map("revoked_at")
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   tokens AuthToken[]
+
+  @@unique([userType, adminId, deviceId], name: "unique_admin_device")
+  @@unique([userType, customerId, deviceId], name: "unique_customer_device")
 
   @@unique([adminId, deviceId])
   @@unique([customerId, deviceId])
@@ -812,6 +861,7 @@ model Device {
   @@map("devices")
 }
 
+
 // ========================================
 // MODULE:  DIVISION.PRISMA
 // ========================================
@@ -819,7 +869,7 @@ model Device {
 model Division {
   id String @id @default(cuid())
 
-  name String @db.VarChar(191)
+  name   String @db.VarChar(191)
   slug String @unique
 
   position Int     @default(0)
@@ -836,6 +886,7 @@ model Division {
   @@index([deletedAt])
   @@map("divisions")
 }
+
 
 // ========================================
 // MODULE:  ENUMS.PRISMA
@@ -978,6 +1029,7 @@ enum NotificationType {
   IN_APP
 }
 
+
 enum ShippingMethod {
   FREE_SHIPPING
   LOCAL_PICKUP
@@ -1032,15 +1084,17 @@ enum OptionPriceType {
   PERCENT
 }
 
+
 // ========== Transaction ==========
 enum TransactionStatus {
-  INITIATED // Payment flow started
-  PENDING // Waiting for gateway response
-  COMPLETED // Payment successful
-  FAILED // Payment failed
-  REFUNDED // Full refund processed
+  INITIATED     // Payment flow started
+  PENDING       // Waiting for gateway response
+  COMPLETED     // Payment successful
+  FAILED        // Payment failed
+  REFUNDED      // Full refund processed
   PARTIALLY_REFUNDED // Partial refund processed
 }
+
 
 enum ShippingRuleType {
   FLAT // Fixed cost per order
@@ -1048,6 +1102,14 @@ enum ShippingRuleType {
   PRICE_BASED // Free above X, else Y
   ITEM_BASED // Cost per item
 }
+
+enum FlashSaleStatus {
+  SCHEDULED
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
 
 // ========================================
 // MODULE:  FLASH_SALE.PRISMA
@@ -1059,31 +1121,35 @@ model FlashSale {
   name        String  @db.VarChar(191)
   description String? @db.Text
 
+  // Sale timing
+  startTime DateTime @map("start_time") // NEW: Renamed from validFrom
+  endTime   DateTime @map("end_time")   // NEW: Renamed from validTo
+
+  // Status
+  status FlashSaleStatus @default(SCHEDULED) // NEW: Explicit status
+
   discountType  String // 'FIXED', 'PERCENT'
   discountValue Decimal @map("discount_value") @db.Decimal(12, 2)
 
-  validFrom DateTime @map("valid_from")
-  validTo   DateTime @map("valid_to")
-
   translations Json? @db.JsonB
-
   isActive Boolean @default(true) @map("is_active")
 
   products FlashSaleProduct[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
   createdBy String? @map("created_by")
   updatedBy String? @map("updated_by")
-
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([status, startTime, endTime]) // NEW: For active sales queries
+  @@index([isActive, status]) // NEW
   @@map("flash_sales")
 }
+
 
 // ========================================
 // MODULE:  FLASH_SALE_PRODUCT.PRISMA
@@ -1098,29 +1164,40 @@ model FlashSaleProduct {
   productId String  @map("product_id")
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  productVariantId String? @map("product_variant_id") // NEW: Support variant-level sales
+
   endDate  DateTime @map("end_date")
   price    Decimal  @db.Decimal(18, 4)
+
+  // Stock management
   qty      Int
-  sold     Int      @default(0) // Atomic increment on order
+  sold     Int      @default(0)
+  reserved Int      @default(0) // NEW: Reserved stock during checkout
+
   position Int      @default(0)
+
+  // Status
+  isActive Boolean @default(true) @map("is_active") // NEW
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
   createdBy String? @map("created_by")
   updatedBy String? @map("updated_by")
-
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@unique([flashSaleId, productId])
+  @@unique([flashSaleId, productId, productVariantId]) // NEW: Include variant
   @@index([flashSaleId])
   @@index([productId])
+  @@index([productVariantId]) // NEW
   @@index([endDate])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([isActive, endDate]) // NEW: For active products
+  @@index([flashSaleId, isActive]) // NEW
   @@map("flash_sale_products")
 }
+
 
 // ========================================
 // MODULE:  INVENTORY_LOG.PRISMA
@@ -1137,32 +1214,36 @@ model InventoryLog {
 
   sku String? @db.VarChar(100)
 
-  // Link to triggering order (null for manual adjustments, restocks)
+  // Link to triggering order
   orderId String? @map("order_id")
+
+  // NEW: Link to flash sale
+  flashSaleProductId String? @map("flash_sale_product_id")
 
   reason InventoryReason @default(MANUAL_ADJUSTMENT)
 
-  qtyBefore Int @map("qty_before")
-  qtyChange Int @map("qty_change")
-  qtyAfter  Int @map("qty_after")
+  qtyBefore Int @map("qty_before") // Renamed from stockBefore
+  qtyChange Int @map("qty_change") // Renamed from quantity
+  qtyAfter  Int @map("qty_after")  // Renamed from stockAfter
 
-  reference String? @db.VarChar(100) // orderId, etc.
+  reference String? @db.VarChar(100)
   notes     String? @db.VarChar(500)
   changedBy String? @map("changed_by")
 
-  // Extra context: { "note": "Damaged in warehouse", "batchId": "B-001" }
   metadata Json? @db.JsonB
 
-  // IMMUTABLE — no updatedAt
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([productId])
   @@index([productVariantId])
   @@index([orderId])
+  @@index([flashSaleProductId]) // NEW
   @@index([reason])
   @@index([createdAt])
+  @@index([productId, createdAt]) // NEW: For product history
   @@map("inventory_logs")
 }
+
 
 // ========================================
 // MODULE:  MEDIA.PRISMA
@@ -1211,6 +1292,8 @@ model Media {
   @@index([createdAt])
   @@index([deletedAt])
   @@index([referenceCount])
+  // @@index([referenceCount])
+  @@index([storageDriver, deletedAt])
   @@map("media")
 }
 
@@ -1243,6 +1326,7 @@ model EntityMedia {
   @@index([isMain])
   @@map("entity_media")
 }
+
 
 // ========================================
 // MODULE:  NOTIFICATION.PRISMA
@@ -1284,6 +1368,7 @@ model Notification {
   @@map("notifications")
 }
 
+
 // ========================================
 // MODULE:  ORDER.PRISMA
 // ========================================
@@ -1307,7 +1392,7 @@ model Order {
   billingAddress  Json @map("billing_address") @db.JsonB
 
   // Delivery info
-  deliveryZoneId String?       @map("delivery_zone_id")
+  deliveryZoneId String? @map("delivery_zone_id")
   deliveryZone   DeliveryZone? @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
 
   courierId      String? @map("courier_id")
@@ -1343,7 +1428,7 @@ model Order {
   shippedAt   DateTime? @map("shipped_at")
   deliveredAt DateTime? @map("delivered_at")
   canceledAt  DateTime? @map("canceled_at")
-  refundedAt  DateTime? @map("refunded_at")
+  refundedAt    DateTime? @map("refunded_at")
 
   products      OrderProduct[]
   taxes         OrderTax[]
@@ -1368,6 +1453,7 @@ model Order {
   @@map("orders")
 }
 
+
 // ========================================
 // MODULE:  ORDER.TAX.PRISMA
 // ========================================
@@ -1380,6 +1466,7 @@ model OrderTax {
   taxRateId String  @map("tax_rate_id")
   taxRate   TaxRate @relation(fields: [taxRateId], references: [id])
 
+
   amount    Decimal @db.Decimal(15, 4)
   rateName  String  @map("rate_name") @db.VarChar(191)
   rateValue Decimal @map("rate_value") @db.Decimal(8, 4)
@@ -1388,6 +1475,7 @@ model OrderTax {
   @@index([taxRateId])
   @@map("order_taxes")
 }
+
 
 // ========================================
 // MODULE:  ORDER_PRODUCT.PRISMA
@@ -1411,16 +1499,18 @@ model OrderProduct {
 
   productImage Json? @map("product_image") @db.JsonB
 
-  unitPrice              Decimal                 @map("unit_price") @db.Decimal(18, 4)
-  qty                    Int
-  lineTotal              Decimal                 @map("line_total") @db.Decimal(18, 4)
-  orderProductOptions    OrderProductOption[]
-  orderProductVariations OrderProductVariation[]
+  unitPrice Decimal @map("unit_price") @db.Decimal(18, 4)
+  qty       Int
+  lineTotal Decimal @map("line_total") @db.Decimal(18, 4)
+
+  options OrderProductOption[]
+  variations OrderProductVariation[]
 
   @@index([orderId])
   @@index([productId])
   @@map("order_products")
 }
+
 
 // ========================================
 // MODULE:  ORDER_PRODUCT_DETAILS.PRISMA
@@ -1432,9 +1522,9 @@ model OrderProductOption {
   orderProductId String       @map("order_product_id")
   orderProduct   OrderProduct @relation(fields: [orderProductId], references: [id])
 
-  optionName               String                    @map("option_name") @db.VarChar(191)
-  value                    String?                   @db.Text
-  orderProductOptionValues OrderProductOptionValue[]
+  optionName String  @map("option_name") @db.VarChar(191)
+  value      String? @db.Text
+  values OrderProductOptionValue[]
 
   @@unique([orderProductId, optionName])
   @@map("order_product_options")
@@ -1445,6 +1535,7 @@ model OrderProductOptionValue {
 
   orderProductOptionId String             @map("order_product_option_id")
   orderProductOption   OrderProductOption @relation(fields: [orderProductOptionId], references: [id])
+
 
   label String   @db.VarChar(191)
   price Decimal? @db.Decimal(18, 4)
@@ -1463,6 +1554,7 @@ model OrderProductVariation {
   value         String        @db.VarChar(191)
 
   variationValues OrderProductVariationValue[]
+  
 
   @@unique([orderProductId, variationName])
   @@map("order_product_variations")
@@ -1480,6 +1572,7 @@ model OrderProductVariationValue {
   @@map("order_product_variation_values")
 }
 
+
 // ========================================
 // MODULE:  ORDER_STATUS_HISTORY.PRISMA
 // ========================================
@@ -1492,7 +1585,7 @@ model OrderStatusHistory {
 
   fromStatus OrderStatus? @map("from_status") // null for initial creation
   toStatus   OrderStatus  @map("to_status")
-  metadata   Json?        @db.JsonB
+  metadata Json? @db.JsonB
 
   // IMMUTABLE
   createdAt DateTime @default(now()) @map("created_at")
@@ -1503,6 +1596,7 @@ model OrderStatusHistory {
   @@map("order_status_history")
 }
 
+
 // ========================================
 // MODULE:  OTP.PRISMA
 // ========================================
@@ -1510,10 +1604,10 @@ model OrderStatusHistory {
 model OTP {
   id String @id @default(cuid())
 
-  phone    String @db.VarChar(20)
-  code     String @db.VarChar(10)
-  type     String // 'PHONE_VERIFICATION', 'LOGIN', 'PASSWORD_RESET'
-  attempts Int    @default(0)
+  phone     String  @db.VarChar(20)
+  code      String  @db.VarChar(10)
+  type      String  // 'PHONE_VERIFICATION', 'LOGIN', 'PASSWORD_RESET'
+  attempts  Int     @default(0)
 
   verified   Boolean   @default(false)
   verifiedAt DateTime? @map("verified_at")
@@ -1526,6 +1620,7 @@ model OTP {
   @@index([expiresAt])
   @@map("otps")
 }
+
 
 // ========================================
 // MODULE:  PRICE_HISTORY.PRISMA
@@ -1542,7 +1637,7 @@ model PriceHistory {
   previousSpecialPrice Decimal? @map("previous_special_price") @db.Decimal(18, 4)
   newSpecialPrice      Decimal? @map("new_special_price") @db.Decimal(18, 4)
 
-  changedBy String?  @map("changed_by")
+  changedBy String? @map("changed_by")
   changedAt DateTime @default(now()) @map("changed_at")
 
   metadata Json? @db.JsonB
@@ -1555,11 +1650,11 @@ model PriceHistory {
   @@map("price_history")
 }
 
+
 // ========================================
 // MODULE:  PRODUCT.PRISMA
 // ========================================
 
-// ─── Product (Core Model) ────────────────────────────────────
 model Product {
   id String @id @default(cuid())
 
@@ -1582,10 +1677,17 @@ model Product {
   specialPriceStart DateTime?         @map("special_price_start")
   specialPriceEnd   DateTime?         @map("special_price_end")
 
+  // NEW: Price range for products with variants
+  minPrice Decimal? @map("min_price") @db.Decimal(18, 4)
+  maxPrice Decimal? @map("max_price") @db.Decimal(18, 4)
+
   // Inventory
   manageStock Boolean @default(false) @map("manage_stock")
   qty         Int?
   inStock     Boolean @default(true) @map("in_stock")
+
+  // NEW: Low stock alert
+  lowStockThreshold Int? @map("low_stock_threshold")
 
   // Shipping
   weight Decimal? @db.Decimal(10, 2)
@@ -1594,15 +1696,18 @@ model Product {
   height String   @db.VarChar(100)
 
   // Flags
+  isActive   Boolean @default(true) @map("is_active")
+  isFeatured Boolean @default(false) @map("is_featured") // NEW
+  viewed     Int     @default(0)
 
-  isActive Boolean @default(true) @map("is_active")
-  viewed   Int     @default(0)
+  // NEW: Rating system
+  averageRating Decimal? @map("average_rating") @db.Decimal(3, 2) // 0.00 to 5.00
+  reviewCount   Int      @default(0) @map("review_count")
 
   newFrom DateTime? @map("new_from")
   newTo   DateTime? @map("new_to")
 
   // Media
-  // JSON: [{ "url": "...", "alt": "...", "position": 0, "isThumbnail": true }]
   images    Json? @db.JsonB
   downloads Json? @db.JsonB
 
@@ -1635,7 +1740,7 @@ model Product {
   deletedAt     DateTime?      @map("deleted_at")
   deletedBy     String?        @map("deleted_by")
   inventoryLogs InventoryLog[]
-  wishlistItems WishlistItem[]
+  // wishlistItems WishlistItem[]
 
   @@index([brandId])
   @@index([taxClassId])
@@ -1645,8 +1750,14 @@ model Product {
   @@index([price])
   @@index([createdAt])
   @@index([deletedAt])
+  @@index([viewed]) // NEW
+  @@index([averageRating]) // NEW
+  @@index([isFeatured, isActive]) // NEW
+  @@index([minPrice, maxPrice]) // NEW: For price range queries
+  @@index([isActive, isFeatured, averageRating]) // NEW: Composite for featured products
   @@map("products")
 }
+
 
 // ========================================
 // MODULE:  PRODUCT_ATTRIBUTE.PRISMA
@@ -1669,6 +1780,7 @@ model ProductAttribute {
   @@map("product_attributes")
 }
 
+
 // ========================================
 // MODULE:  PRODUCT_ATTRIBUTE.VALUE.PRISMA
 // ========================================
@@ -1684,6 +1796,7 @@ model ProductAttributeValue {
   @@map("product_attribute_values")
 }
 
+
 // ========================================
 // MODULE:  PRODUCT_CATEGORY.PRISMA
 // ========================================
@@ -1696,11 +1809,17 @@ model ProductCategory {
   categoryId String   @map("category_id")
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
+  position Int @default(0) // NEW: Manual ordering within category
+  isPrimary Boolean @default(false) @map("is_primary") // NEW: Primary category
+
   @@unique([productId, categoryId])
   @@index([productId])
   @@index([categoryId])
+  @@index([categoryId, position]) // NEW: For ordered category listings
+  @@index([categoryId, isPrimary]) // NEW
   @@map("product_categories")
 }
+
 
 // ========================================
 // MODULE:  PRODUCT_RELATIONS.PRISMA
@@ -1745,13 +1864,14 @@ model CrossSellProduct {
   @@map("cross_sell_products")
 }
 
+
 // ========================================
 // MODULE:  PRODUCT_TAG.PRISMA
 // ========================================
 
 model ProductTag {
-  id        String  @id @default(cuid())
-  productId String  @map("product_id")
+  id        String @id @default(cuid())
+  productId String @map("product_id")
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   tagId String @map("tag_id")
@@ -1762,6 +1882,7 @@ model ProductTag {
   @@index([tagId])
   @@map("product_tags")
 }
+
 
 // ========================================
 // MODULE:  PRODUCT_VARIANT.PRISMA
@@ -1778,23 +1899,34 @@ model ProductVariant {
 
   name              String            @db.VarChar(191)
   sku               String?           @unique @db.VarChar(100)
+  barcode           String?           @db.VarChar(100) // NEW
+
   price             Decimal?          @db.Decimal(18, 4)
   specialPrice      Decimal?          @map("special_price") @db.Decimal(18, 4)
   specialPriceType  SpecialPriceType? @map("special_price_type")
   specialPriceStart DateTime?         @map("special_price_start")
   specialPriceEnd   DateTime?         @map("special_price_end")
 
-  manageStock Boolean? @map("manage_stock")
-  qty         Int?
-  inStock     Boolean? @map("in_stock")
+  // Inventory
+  manageStock       Boolean? @map("manage_stock")
+  qty               Int?
+  reservedQty       Int?     @default(0) @map("reserved_qty") // NEW
+  inStock           Boolean? @map("in_stock")
+  lowStockThreshold Int?     @map("low_stock_threshold") // NEW
+
+  // Physical attributes
+  weight Decimal? @db.Decimal(10, 2) // NEW
+  length Decimal? @db.Decimal(10, 2) // NEW
+  width  Decimal? @db.Decimal(10, 2) // NEW
+  height Decimal? @db.Decimal(10, 2) // NEW
 
   isDefault Boolean @default(false) @map("is_default")
   isActive  Boolean @default(true) @map("is_active")
+  position  Int     @default(0)
 
   images Json? @db.JsonB
 
   inventoryLogs InventoryLog[]
-
   orderProducts OrderProduct[]
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -1804,10 +1936,15 @@ model ProductVariant {
 
   @@index([productId])
   @@index([sku])
+  @@index([barcode]) // NEW
   @@index([isActive, deletedAt])
   @@index([deletedAt])
+  @@index([productId, isDefault]) // NEW
+  @@index([productId, position]) // NEW
+  @@index([qty]) // NEW: For stock queries
   @@map("product_variants")
 }
+
 
 // ========================================
 // MODULE:  PRODUCT_VARIATION.PRISMA
@@ -1824,6 +1961,7 @@ model ProductVariation {
   @@index([variationId])
   @@map("product_variations")
 }
+
 
 // ========================================
 // MODULE:  PROMOTION.PRISMA
@@ -1944,6 +2082,7 @@ model Promotion {
   @@map("promotions")
 }
 
+
 // ========================================
 // MODULE:  QUEUE_JOB.PRISMA
 // ========================================
@@ -1974,7 +2113,7 @@ model QueueJob {
   queue  String         @db.VarChar(100) // "email", "image-processing", "stock-sync"
   name   String         @db.VarChar(191) // "send-order-confirmation", "resize-product-image"
   status QueueJobStatus @default(QUEUED)
-  data   Json           @db.JsonB
+  data Json @db.JsonB
 
   startedAt   DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
@@ -1990,6 +2129,7 @@ model QueueJob {
   @@index([queue, status]) // "How many email jobs are stuck?"
   @@map("queue_jobs")
 }
+
 
 // ========================================
 // MODULE:  REFUND.PRISMA
@@ -2049,6 +2189,7 @@ model Refund {
   @@map("refunds")
 }
 
+
 // ========================================
 // MODULE:  REVIEW.PRISMA
 // ========================================
@@ -2082,6 +2223,7 @@ model Review {
   @@map("reviews")
 }
 
+
 // ========================================
 // MODULE:  SEARCH_TERM.PRISMA
 // ========================================
@@ -2089,8 +2231,8 @@ model Review {
 model SearchTerm {
   id String @id @default(cuid())
 
-  term       String   @db.VarChar(191)
-  count      Int      @default(1)
+  term  String @db.VarChar(191)
+  count Int    @default(1)
   lastUsedAt DateTime @map("last_used_at")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -2101,6 +2243,7 @@ model SearchTerm {
   @@index([lastUsedAt])
   @@map("search_terms")
 }
+
 
 // ========================================
 // MODULE:  SETTING.PRISMA
@@ -2131,6 +2274,7 @@ model Setting {
   @@map("settings")
 }
 
+
 // ========================================
 // MODULE:  SHIPPING_RULE.PRISMA
 // ========================================
@@ -2145,9 +2289,9 @@ model ShippingRule {
   courier   Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
 
   // Pricing
-  rateType  ShippingRuleType @default(FLAT) @map("rate_type")
-  baseCost  Decimal          @map("base_cost") @db.Decimal(18, 4) // Base delivery fee
-  perKgCost Decimal          @default(0) @map("per_kg_cost") @db.Decimal(18, 4) // Extra per kg (for WEIGHT_BASED)
+  rateType ShippingRuleType @default(FLAT) @map("rate_type")
+  baseCost Decimal          @map("base_cost") @db.Decimal(18, 4) // Base delivery fee
+  perKgCost Decimal         @default(0) @map("per_kg_cost") @db.Decimal(18, 4) // Extra per kg (for WEIGHT_BASED)
 
   // Conditions
   freeShippingMinimum Decimal? @map("free_shipping_minimum") @db.Decimal(18, 4) // Free if order >= this amount
@@ -2174,15 +2318,16 @@ model ShippingRule {
   @@map("shipping_rules")
 }
 
+
 // ========================================
 // MODULE:  STOCK_RESERVATION.PRISMA
 // ========================================
 
 enum ReservationStatus {
-  ACTIVE // Currently holding stock
-  CONVERTED // Payment succeeded → stock permanently deducted
-  EXPIRED // TTL expired → stock released by cron
-  CANCELED // User canceled or payment failed → stock released
+  ACTIVE      // Currently holding stock
+  CONVERTED   // Payment succeeded → stock permanently deducted
+  EXPIRED     // TTL expired → stock released by cron
+  CANCELED    // User canceled or payment failed → stock released
 }
 
 model StockReservation {
@@ -2218,6 +2363,7 @@ model StockReservation {
   @@map("stock_reservations")
 }
 
+
 // ========================================
 // MODULE:  TAG.PRISMA
 // ========================================
@@ -2247,6 +2393,7 @@ model Tag {
   @@map("tags")
 }
 
+
 // ========================================
 // MODULE:  TAX.PRISMA
 // ========================================
@@ -2254,9 +2401,9 @@ model Tag {
 model TaxClass {
   id String @id @default(cuid())
 
-  name        String     @db.VarChar(191)
-  description String?    @db.VarChar(500)
-  basedOn     TaxBasedOn @default(SHIPPING_ADDRESS) @map("based_on")
+  name    String     @db.VarChar(191)
+  description String? @db.VarChar(500)
+  basedOn TaxBasedOn @default(SHIPPING_ADDRESS) @map("based_on")
 
   translations Json? @db.JsonB
 
@@ -2300,6 +2447,7 @@ model TaxRate {
   @@map("tax_rates")
 }
 
+
 // ========================================
 // MODULE:  TRANSACTION.PRISMA
 // ========================================
@@ -2310,15 +2458,15 @@ model Transaction {
   orderId String @unique @map("order_id")
   order   Order  @relation(fields: [orderId], references: [id])
 
-  transactionId String @map("transaction_id") @db.VarChar(191)
+  transactionId String        @map("transaction_id") @db.VarChar(191)
 
   paymentMethod PaymentMethod @map("payment_method")
   paymentStatus PaymentStatus @map("payment_status")
 
-  amount   Decimal @db.Decimal(18, 4)
-  currency String  @db.VarChar(10)
+  amount        Decimal       @db.Decimal(18, 4)
+  currency      String        @db.VarChar(10)
 
-  reference String? @db.VarChar(255)
+  reference  String? @db.VarChar(255)
 
   gatewayResponse Json? @map("gateway_response") @db.JsonB
   refunds         Json? @db.JsonB
@@ -2342,6 +2490,7 @@ model Transaction {
   @@index([createdAt])
   @@map("transactions")
 }
+
 
 // ========================================
 // MODULE:  VARIATION.PRISMA
@@ -2373,6 +2522,7 @@ model Variation {
   @@index([deletedAt])
   @@map("variations")
 }
+
 
 // ========================================
 // MODULE:  VARIATION_VALUE.PRISMA
@@ -2409,6 +2559,7 @@ model VariationValue {
   @@map("variation_values")
 }
 
+
 // ========================================
 // MODULE:  VERIFICATION_OTP.PRISMA
 // ========================================
@@ -2439,22 +2590,26 @@ model VerificationOtp {
   @@index([channel, purpose])
   @@index([expiresAt])
   @@index([verified])
+  @@index([target, purpose, verified, expiresAt])
+  @@index([verified, verifiedAt])
   @@map("verification_otps")
 }
+
 
 // ========================================
 // MODULE:  WISHLIST.PRISMA
 // ========================================
 
 model WishlistItem {
-  customerId String   @map("customer_id")
-  customer   Customer @relation(fields: [customerId], references: [id])
-  productId  String   @map("product_id")
-  product    Product  @relation(fields: [productId], references: [id])
+  id         String   @id @default(uuid())
+  // // customerId String   @map("customer_id")
+  // customer   Customer @relation(fields: [customerId], references: [id])
+  // productId  String   @map("product_id")
+  // product    Product  @relation(fields: [productId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@id([customerId, productId])
-  @@index([productId])
+  // @@id([customerId, productId])
+  // @@index([productId])
   @@map("wish_lists")
 }

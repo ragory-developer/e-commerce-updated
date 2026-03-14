@@ -140,4 +140,63 @@ export class FlashSaleController {
     await this.flashSaleService.remove(id, user.id);
     return { message: 'Flash sale deleted successfully', data: null };
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET ACTIVE FLASH SALES (PUBLIC)
+  // ══════════════════════════════════════════════════════════════
+  @Get('active')
+  @Public()
+  @ApiOperation({ summary: 'Get all active flash sales (public)' })
+  async getActive() {
+    const data = await this.flashSaleService.getActiveFlashSales();
+    return { message: 'Active flash sales retrieved', data };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: CHECK FLASH SALE FOR PRODUCT (PUBLIC)
+  // ══════════════════════════════════════════════════════════════
+  @Get('check-product/:productId')
+  @Public()
+  @ApiParam({ name: 'productId', description: 'Product ID' })
+  @ApiQuery({ name: 'variantId', required: false })
+  @ApiOperation({ summary: 'Check if product has active flash sale' })
+  async checkForProduct(
+    @Param('productId') productId: string,
+    @Query('variantId') variantId?: string,
+  ) {
+    const data = await this.flashSaleService.checkFlashSaleForProduct(
+      productId,
+      variantId,
+    );
+    return {
+      message: data ? 'Flash sale found' : 'No active flash sale',
+      data,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: RESERVE FLASH SALE STOCK (CUSTOMER)
+  // ══════════════════════════════════════════════════════════════
+  @Post('reserve')
+  @ApiBearerAuth('access-token')
+  @UserType('CUSTOMER')
+  @ApiOperation({ summary: 'Reserve flash sale stock during checkout' })
+  async reserveStock(
+    @Body()
+    dto: {
+      flashSaleProductId: string;
+      quantity: number;
+    },
+    @CurrentUser() user: RequestUser,
+  ) {
+    const result = await this.flashSaleService.reserveStock(
+      dto.flashSaleProductId,
+      dto.quantity,
+      user.id,
+    );
+    return {
+      message: result.success ? 'Stock reserved' : result.message,
+      data: result,
+    };
+  }
 }

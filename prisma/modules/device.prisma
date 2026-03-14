@@ -27,6 +27,9 @@ model Device {
 
   tokens AuthToken[]
 
+  @@unique([userType, adminId, deviceId], name: "unique_admin_device")
+  @@unique([userType, customerId, deviceId], name: "unique_customer_device")
+
   @@unique([adminId, deviceId])
   @@unique([customerId, deviceId])
   @@index([adminId])

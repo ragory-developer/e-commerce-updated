@@ -20,6 +20,9 @@ model OrderProduct {
   qty       Int
   lineTotal Decimal @map("line_total") @db.Decimal(18, 4)
 
+  options OrderProductOption[]
+  variations OrderProductVariation[]
+
   @@index([orderId])
   @@index([productId])
   @@map("order_products")

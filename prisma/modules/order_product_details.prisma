@@ -6,6 +6,7 @@ model OrderProductOption {
 
   optionName String  @map("option_name") @db.VarChar(191)
   value      String? @db.Text
+  values OrderProductOptionValue[]
 
   @@unique([orderProductId, optionName])
   @@map("order_product_options")
@@ -35,6 +36,7 @@ model OrderProductVariation {
   value         String        @db.VarChar(191)
 
   variationValues OrderProductVariationValue[]
+  
 
   @@unique([orderProductId, variationName])
   @@map("order_product_variations")

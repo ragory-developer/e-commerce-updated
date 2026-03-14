@@ -11,7 +11,7 @@ model AuthToken {
   deviceId String? @map("device_id")
   device   Device? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  tokenHash   String @map("token_hash") @db.VarChar(255)
+  tokenHash   String   @unique @map("token_hash") @db.VarChar(255)
   tokenFamily String @map("token_family") @db.VarChar(191)
 
   expiresAt DateTime @map("expires_at")
@@ -29,6 +29,9 @@ model AuthToken {
   @@index([tokenFamily])
   @@index([expiresAt])
   @@index([revoked])
+  @@index([tokenHash])
+  @@index([userType, adminId, revoked])
+  @@index([userType, customerId, revoked])
+  @@index([deviceId, revoked])
   @@map("auth_tokens")
 }
-

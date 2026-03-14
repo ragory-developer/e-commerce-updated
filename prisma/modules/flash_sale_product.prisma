@@ -7,26 +7,36 @@ model FlashSaleProduct {
   productId String  @map("product_id")
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  productVariantId String? @map("product_variant_id") // NEW: Support variant-level sales
+
   endDate  DateTime @map("end_date")
   price    Decimal  @db.Decimal(18, 4)
+
+  // Stock management
   qty      Int
-  sold     Int      @default(0) // Atomic increment on order
+  sold     Int      @default(0)
+  reserved Int      @default(0) // NEW: Reserved stock during checkout
+
   position Int      @default(0)
+
+  // Status
+  isActive Boolean @default(true) @map("is_active") // NEW
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
   createdBy String? @map("created_by")
   updatedBy String? @map("updated_by")
-
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by")
 
-  @@unique([flashSaleId, productId])
+  @@unique([flashSaleId, productId, productVariantId]) // NEW: Include variant
   @@index([flashSaleId])
   @@index([productId])
+  @@index([productVariantId]) // NEW
   @@index([endDate])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([isActive, endDate]) // NEW: For active products
+  @@index([flashSaleId, isActive]) // NEW
   @@map("flash_sale_products")
 }

@@ -1,6 +1,11 @@
 // ─── src/auth/token.service.ts ──────────────────────────────
 
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -81,6 +86,56 @@ export class TokenService {
   }
 
   // ─── Device management ──────────────────────────────────────
+  // async upsertDevice(
+  //   userType: AuthUserType,
+  //   ownerId: string,
+  //   deviceInfo: DeviceInfo,
+  // ): Promise<string> {
+  //   const ownerField =
+  //     userType === 'ADMIN' ? { adminId: ownerId } : { customerId: ownerId };
+
+  //   const existing = await this.prisma.device.findFirst({
+  //     where: {
+  //       ...ownerField,
+  //       deviceId: deviceInfo.clientDeviceId,
+  //     },
+  //     select: { id: true, userAgent: true, ipAddress: true, isActive: true },
+  //   });
+
+  //   if (existing) {
+  //     await this.prisma.device.update({
+  //       where: { id: existing.id },
+  //       data: {
+  //         isActive: true,
+  //         revokedAt: null,
+  //         lastActiveAt: new Date(),
+  //         deviceName: deviceInfo.deviceName ?? undefined,
+  //         deviceType: deviceInfo.deviceType ?? undefined,
+  //         userAgent: deviceInfo.userAgent ?? null,
+  //         ipAddress: deviceInfo.ipAddress ?? null,
+  //       },
+  //     });
+
+  //     return existing.id;
+  //   }
+
+  //   const device = await this.prisma.device.create({
+  //     data: {
+  //       ...ownerField,
+  //       userType,
+  //       deviceId: deviceInfo.clientDeviceId,
+  //       deviceName: deviceInfo.deviceName ?? null,
+  //       deviceType: deviceInfo.deviceType ?? undefined,
+  //       userAgent: deviceInfo.userAgent ?? null,
+  //       ipAddress: deviceInfo.ipAddress ?? null,
+  //     },
+  //     select: { id: true },
+  //   });
+
+  //   return device.id;
+  // }
+
+  // ─── Device management ──────────────────────────────────────
   async upsertDevice(
     userType: AuthUserType,
     ownerId: string,
@@ -94,18 +149,69 @@ export class TokenService {
         ...ownerField,
         deviceId: deviceInfo.clientDeviceId,
       },
-      select: { id: true },
+      select: {
+        id: true,
+        userAgent: true,
+        ipAddress: true,
+        isActive: true,
+      },
     });
 
     if (existing) {
+      //  SECURITY: Check if device fingerprint drastically changed
+      const uaChanged =
+        existing.userAgent &&
+        deviceInfo.userAgent &&
+        existing.userAgent !== deviceInfo.userAgent &&
+        !this.isSimilarUserAgent(existing.userAgent, deviceInfo.userAgent);
+
+      const ipChanged =
+        existing.ipAddress &&
+        deviceInfo.ipAddress &&
+        existing.ipAddress !== deviceInfo.ipAddress;
+
+      if (uaChanged && ipChanged) {
+        this.logger.warn(
+          `[SECURITY] Device fingerprint changed for ${deviceInfo.clientDeviceId}. ` +
+            `Old: ${existing.userAgent} / ${existing.ipAddress}, ` +
+            `New: ${deviceInfo.userAgent} / ${deviceInfo.ipAddress}`,
+        );
+
+        // Revoke old device
+        await this.prisma.device.update({
+          where: { id: existing.id },
+          data: {
+            isActive: false,
+            revokedAt: new Date(),
+          },
+        });
+
+        // Create new device with same clientDeviceId but new DB ID
+        const newDevice = await this.prisma.device.create({
+          data: {
+            ...ownerField,
+            userType,
+            deviceId: deviceInfo.clientDeviceId,
+            deviceName: deviceInfo.deviceName ?? null,
+            deviceType: deviceInfo.deviceType ?? null,
+            userAgent: deviceInfo.userAgent ?? null,
+            ipAddress: deviceInfo.ipAddress ?? null,
+          },
+          select: { id: true },
+        });
+
+        return newDevice.id;
+      }
+
+      //  Normal update
       await this.prisma.device.update({
         where: { id: existing.id },
         data: {
           isActive: true,
           revokedAt: null,
           lastActiveAt: new Date(),
-          deviceName: deviceInfo.deviceName ?? undefined,
-          deviceType: deviceInfo.deviceType ?? undefined,
+          deviceName: deviceInfo.deviceName ?? null,
+          deviceType: deviceInfo.deviceType ?? null,
           userAgent: deviceInfo.userAgent ?? null,
           ipAddress: deviceInfo.ipAddress ?? null,
         },
@@ -114,13 +220,14 @@ export class TokenService {
       return existing.id;
     }
 
+    // Create new device
     const device = await this.prisma.device.create({
       data: {
         ...ownerField,
         userType,
         deviceId: deviceInfo.clientDeviceId,
         deviceName: deviceInfo.deviceName ?? null,
-        deviceType: deviceInfo.deviceType ?? undefined,
+        deviceType: deviceInfo.deviceType ?? null,
         userAgent: deviceInfo.userAgent ?? null,
         ipAddress: deviceInfo.ipAddress ?? null,
       },
@@ -128,6 +235,21 @@ export class TokenService {
     });
 
     return device.id;
+  }
+
+  /**
+   * Check if user agents are similar (e.g., Chrome version update)
+   */
+  private isSimilarUserAgent(oldUa: string, newUa: string): boolean {
+    const getBrowserName = (ua: string) => {
+      if (ua.includes('Chrome')) return 'Chrome';
+      if (ua.includes('Firefox')) return 'Firefox';
+      if (ua.includes('Safari')) return 'Safari';
+      if (ua.includes('Edge')) return 'Edge';
+      return 'Unknown';
+    };
+
+    return getBrowserName(oldUa) === getBrowserName(newUa);
   }
 
   // ─── Issue access + refresh tokens ──────────────────────────
@@ -221,6 +343,31 @@ export class TokenService {
     }
 
     if (tokenRecord.revoked) {
+      this.logger.error(
+        ` [SECURITY] Token reuse detected for family ${tokenRecord.tokenFamily} `,
+      );
+
+      await this.prisma.authToken.updateMany({
+        where: {
+          tokenFamily: tokenRecord.tokenFamily,
+          revoked: false,
+        },
+        data: {
+          revoked: true,
+          revokedAt: new Date(),
+          revokedReason: 'TOKEN_REUSE_DETECTED',
+        },
+      });
+
+      if (tokenRecord.deviceId) {
+        await this.prisma.device.update({
+          where: { id: tokenRecord.deviceId },
+          data: {
+            isActive: false,
+            revokedAt: new Date(),
+          },
+        });
+      }
       throw new UnauthorizedException(AUTH_ERROR.REFRESH_TOKEN_REUSE);
     }
 
@@ -344,6 +491,44 @@ export class TokenService {
     }
 
     return { id: sub, type, deviceId, role, permissions };
+  }
+
+  // ───────────────────────── Revoke all tokens for a specific device ─────────────────────────
+
+  async revokeDeviceTokens(deviceDbId: string, reason: string): Promise<void> {
+    //  Validate device exists first
+    const device = await this.prisma.device.findUnique({
+      where: { id: deviceDbId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!device) {
+      throw new NotFoundException('Device not found');
+    }
+
+    //  Revoke all tokens for this device
+    await this.prisma.authToken.updateMany({
+      where: {
+        deviceId: deviceDbId,
+        revoked: false,
+      },
+      data: {
+        revoked: true,
+        revokedAt: new Date(),
+        revokedReason: reason,
+      },
+    });
+
+    //  Mark device as inactive
+    await this.prisma.device.update({
+      where: { id: deviceDbId },
+      data: {
+        isActive: false,
+        revokedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`Device ${deviceDbId} revoked. Reason: ${reason}`);
   }
 
   // ─── Cleanup job ────────────────────────────────────────────

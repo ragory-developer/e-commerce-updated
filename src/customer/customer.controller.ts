@@ -7,8 +7,10 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  Param,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CustomerService } from './customer.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserType } from '../common/decorators/user-type.decorator';
@@ -18,6 +20,7 @@ import {
   ChangePasswordDto,
   UpgradeGuestDto,
 } from './dto';
+import { ListOrdersDto } from 'src/order/dto';
 
 @ApiTags('Customer — Profile')
 @ApiBearerAuth('access-token')
@@ -88,5 +91,40 @@ export class CustomerController {
   async deactivateAccount(@CurrentUser() user: RequestUser) {
     await this.customerService.deactivateAccount(user.id);
     return { message: 'Account deactivated', data: null };
+  }
+
+  // src/customer/customer.controller.ts
+
+  @Get('orders')
+  @ApiOperation({ summary: 'Get my order history' })
+  @ApiResponse({ status: 200, description: 'Orders retrieved' })
+  async getOrders(
+    @CurrentUser() user: RequestUser,
+    @Query() query: ListOrdersDto, // Pagination DTO
+  ) {
+    const result = await this.customerService.getOrders(
+      user.id,
+      query.skip,
+      query.take,
+    );
+    return {
+      message: 'Orders retrieved',
+      data: result.data,
+      meta: {
+        total: result.total,
+        skip: query.skip,
+        take: query.take,
+      },
+    };
+  }
+
+  @Get('orders/:id')
+  @ApiOperation({ summary: 'Get single order details' })
+  async getOrder(
+    @Param('id') orderId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const data = await this.customerService.getOrder(orderId, user.id);
+    return { message: 'Order retrieved', data };
   }
 }

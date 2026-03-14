@@ -368,16 +368,24 @@ export class MediaService {
   async deleteMedia(id: string, deletedBy?: string): Promise<void> {
     const media = await this.prisma.media.findFirst({
       where: { id, deletedAt: null },
-      select: { id: true, referenceCount: true },
+      include: {
+        entityMedia: {
+          select: { id: true, entityType: true, entityId: true },
+        },
+      },
     });
 
     if (!media) {
       throw new NotFoundException('Media not found');
     }
 
-    if (media.referenceCount > 0) {
+    //  Check actual usage, not just referenceCount
+    if (media.entityMedia.length > 0) {
       throw new BadRequestException(
-        'Cannot delete media that is currently in use. Remove all references first.',
+        `Cannot delete media. Still linked to ${media.entityMedia.length} entities: ` +
+          media.entityMedia
+            .map((e) => `${e.entityType}:${e.entityId}`)
+            .join(', '),
       );
     }
 

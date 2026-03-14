@@ -91,6 +91,41 @@ export class CategoryController {
   }
 
   // ══════════════════════════════════════════════════════════════
+  // NEW: GET CATEGORY PRODUCTS (Enhanced)
+  // ══════════════════════════════════════════════════════════════
+  @Get('slug/:slug/products')
+  @Public()
+  @ApiParam({ name: 'slug', description: 'Category slug' })
+  @ApiOperation({ summary: 'Get products in category with filters' })
+  async getCategoryProducts(
+    @Param('slug') slug: string,
+    @Query('skip') skip?: number,
+    @Query('take') take?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('priceMin') priceMin?: number,
+    @Query('priceMax') priceMax?: number,
+    @Query('brandId') brandId?: string,
+    @Query('inStock') inStock?: boolean,
+    @Query('includeSubcategories') includeSubcategories?: boolean,
+  ) {
+    const result = await this.categoryService.getCategoryProducts(slug, {
+      skip: skip ? Number(skip) : 0,
+      take: take ? Number(take) : 20,
+      sortBy,
+      priceMin: priceMin ? Number(priceMin) : undefined,
+      priceMax: priceMax ? Number(priceMax) : undefined,
+      brandId,
+      inStock: inStock === true || inStock === 'true',
+      includeSubcategories:
+        includeSubcategories === true || includeSubcategories === 'true',
+    });
+    return {
+      message: 'Products retrieved successfully',
+      ...result,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
   // GET CATEGORY BY ID (PUBLIC)
   // ══════════════════════════════════════════════════════════════
   @Get(':id')
@@ -138,6 +173,29 @@ export class CategoryController {
   ) {
     const data = await this.categoryService.move(id, dto, user.id);
     return { message: 'Category moved successfully', data };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET CATEGORY TREE WITH PRODUCT COUNTS
+  // ══════════════════════════════════════════════════════════════
+  @Get('tree-with-counts')
+  @Public()
+  @ApiOperation({ summary: 'Get category tree with product counts' })
+  async getTreeWithCounts() {
+    const data = await this.categoryService.getTreeWithCounts();
+    return { message: 'Category tree retrieved successfully', data };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET CATEGORY BREADCRUMBS
+  // ══════════════════════════════════════════════════════════════
+  @Get(':id/breadcrumbs')
+  @Public()
+  @ApiParam({ name: 'id', description: 'Category ID' })
+  @ApiOperation({ summary: 'Get breadcrumb trail for category' })
+  async getBreadcrumbs(@Param('id') id: string) {
+    const data = await this.categoryService.getBreadcrumbs(id);
+    return { message: 'Breadcrumbs retrieved successfully', data };
   }
 
   // ══════════════════════════════════════════════════════════════

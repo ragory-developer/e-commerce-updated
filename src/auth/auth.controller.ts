@@ -9,7 +9,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import type { Request } from 'express';
 
 import { AdminAuthService } from './admin-auth.service';
@@ -38,6 +38,8 @@ import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import type { RequestUser } from './auth.types';
+import { Throttle } from '@nestjs/throttler';
+import { randomBytes } from 'crypto';
 
 // ─── Helper: extract device info from request ─────────────────
 function extractDeviceInfo(req: Request, body: any) {
@@ -53,16 +55,34 @@ function extractDeviceInfo(req: Request, body: any) {
   };
 }
 
+// function generateFallbackDeviceId(req: Request): string {
+//   const ua = req.headers['user-agent'] ?? '';
+//   const ip = req.socket.remoteAddress ?? '';
+//   const raw = `${ua}:${ip}`;
+//   let hash = 5381;
+//   for (let i = 0; i < raw.length; i++) {
+//     hash = (hash << 5) + hash + raw.charCodeAt(i);
+//     hash &= 0xffffffff;
+//   }
+//   return `fallback-${Math.abs(hash).toString(16)}`;
+// }
+
 function generateFallbackDeviceId(req: Request): string {
-  const ua = req.headers['user-agent'] ?? '';
-  const ip = req.socket.remoteAddress ?? '';
-  const raw = `${ua}:${ip}`;
+  const ua = req.headers['user-agent'] ?? 'unknown';
+  const ip = req.socket.remoteAddress ?? 'unknown';
+  const timestamp = Date.now();
+  const random = randomBytes(8).toString('hex');
+
+  //  Include timestamp + random to ensure uniqueness
+  const raw = `${ua}:${ip}:${timestamp}:${random}`;
+
   let hash = 5381;
   for (let i = 0; i < raw.length; i++) {
     hash = (hash << 5) + hash + raw.charCodeAt(i);
     hash &= 0xffffffff;
   }
-  return `fallback-${Math.abs(hash).toString(16)}`;
+
+  return `fallback-${Math.abs(hash).toString(16)}-${random.substring(0, 8)}`;
 }
 
 @ApiTags('Auth')
@@ -82,6 +102,7 @@ export class AuthController {
   // ══════════════════════════════════════════════════════════════
 
   @Public()
+  @Throttle({ short: { limit: 3, ttl: 60000 } })
   @Post('admin/login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Admin login with email + password' })
@@ -104,6 +125,7 @@ export class AuthController {
 
   // Step 1 — Send OTP
   @Public()
+  @Throttle({ short: { limit: 3, ttl: 60000 } })
   @Post('customer/register/request-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '[Step 1] Send OTP to phone for registration' })
@@ -175,8 +197,16 @@ export class AuthController {
   // ══════════════════════════════════════════════════════════════
 
   @Public()
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
   @Post('customer/login/password')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Customer login with phone + password' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid credentials or account locked',
+  })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
   @ApiOperation({ summary: 'Customer login with phone + password' })
   async customerPasswordLogin(
     @Body() dto: CustomerPasswordLoginDto,

@@ -12,7 +12,7 @@ model Media {
   storageDriver String @map("storage_driver") @db.VarChar(20) //local || cloudinary
   storagePath   String @map("storage_path") @db.VarChar(500)
   storageUrl    String @map("storage_url") @db.VarChar(500)
-  
+
   variants Json? @db.JsonB
 
   // ! image metadata
@@ -41,6 +41,8 @@ model Media {
   @@index([createdAt])
   @@index([deletedAt])
   @@index([referenceCount])
+  // @@index([referenceCount])
+  @@index([storageDriver, deletedAt])
   @@map("media")
 }
 

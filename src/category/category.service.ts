@@ -135,6 +135,8 @@ export class CategoryService {
   // CREATE CATEGORY
   // ══════════════════════════════════════════════════════════════
   async create(dto: CreateCategoryDto, createdBy: string): Promise<object> {
+    // const { path, pathIds, depth } = await this.buildPath(dto.parentId || null);
+
     // Check slug uniqueness
     const existingSlug = await this.prisma.category.findFirst({
       where: { slug: dto.slug, deletedAt: null },
@@ -553,25 +555,22 @@ export class CategoryService {
   // ══════════════════════════════════════════════════════════════
   // GET BREADCRUMBS
   // ══════════════════════════════════════════════════════════════
-  private async getBreadcrumbs(pathIds: string | null): Promise<any[]> {
-    if (!pathIds) return [];
+  async getBreadcrumbs(categoryId: string): Promise<any[]> {
+    const category = await this.prisma.category.findFirst({
+      where: { id: categoryId, deletedAt: null },
+      select: { pathIds: true },
+    });
 
-    const ids = pathIds.split(',').filter(Boolean);
+    if (!category || !category.pathIds) return [];
+
+    const ids = category.pathIds.split(',').filter(Boolean);
     if (ids.length === 0) return [];
 
     const categories = await this.prisma.category.findMany({
-      where: {
-        id: { in: ids },
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-      },
+      where: { id: { in: ids }, deletedAt: null },
+      select: { id: true, name: true, slug: true },
     });
 
-    // Order by pathIds order
     return ids
       .map((id) => categories.find((cat) => cat.id === id))
       .filter(Boolean);
@@ -923,5 +922,198 @@ export class CategoryService {
     }
 
     return categories;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET CATEGORY TREE WITH PRODUCT COUNTS
+  // ══════════════════════════════════════════════════════════════
+  async getTreeWithCounts(): Promise<any[]> {
+    const categories = await this.prisma.category.findMany({
+      where: {
+        deletedAt: null,
+        parentId: null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        image: true,
+        icon: true,
+        position: true,
+        depth: true,
+        isActive: true,
+        _count: {
+          select: {
+            children: { where: { deletedAt: null, isActive: true } },
+            products: true,
+          },
+        },
+      },
+      orderBy: [{ position: 'asc' }, { name: 'asc' }],
+    });
+
+    for (const cat of categories) {
+      await this.loadChildrenWithCounts(cat);
+    }
+
+    return categories;
+  }
+
+  private async loadChildrenWithCounts(category: any): Promise<void> {
+    const children = await this.prisma.category.findMany({
+      where: {
+        parentId: category.id,
+        deletedAt: null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        image: true,
+        icon: true,
+        parentId: true,
+        position: true,
+        depth: true,
+        path: true,
+        isActive: true,
+        _count: {
+          select: {
+            children: { where: { deletedAt: null, isActive: true } },
+            products: true,
+          },
+        },
+      },
+      orderBy: [{ position: 'asc' }, { name: 'asc' }],
+    });
+
+    category.children = children;
+
+    for (const child of children) {
+      await this.loadChildrenWithCounts(child);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW: GET PRODUCTS BY CATEGORY (with subcategories)
+  // ══════════════════════════════════════════════════════════════
+  async getCategoryProducts(
+    categorySlug: string,
+    dto: {
+      skip?: number;
+      take?: number;
+      sortBy?: string;
+      priceMin?: number;
+      priceMax?: number;
+      brandId?: string;
+      inStock?: boolean;
+      includeSubcategories?: boolean;
+    },
+  ) {
+    const category = await this.prisma.category.findFirst({
+      where: { slug: categorySlug, deletedAt: null },
+      select: { id: true, pathIds: true },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    let categoryIds = [category.id];
+
+    // Include subcategories if requested
+    if (dto.includeSubcategories) {
+      const subcategories = await this.prisma.category.findMany({
+        where: {
+          pathIds: { contains: category.id },
+          deletedAt: null,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      categoryIds = [...categoryIds, ...subcategories.map((c) => c.id)];
+    }
+
+    const where: any = {
+      deletedAt: null,
+      isActive: true,
+      categories: {
+        some: {
+          categoryId: { in: categoryIds },
+        },
+      },
+      ...(dto.brandId && { brandId: dto.brandId }),
+      ...(dto.inStock !== undefined && { inStock: dto.inStock }),
+      ...((dto.priceMin !== undefined || dto.priceMax !== undefined) && {
+        OR: [
+          {
+            price: {
+              ...(dto.priceMin !== undefined && { gte: dto.priceMin }),
+              ...(dto.priceMax !== undefined && { lte: dto.priceMax }),
+            },
+          },
+          {
+            variants: {
+              some: {
+                deletedAt: null,
+                price: {
+                  ...(dto.priceMin !== undefined && { gte: dto.priceMin }),
+                  ...(dto.priceMax !== undefined && { lte: dto.priceMax }),
+                },
+              },
+            },
+          },
+        ],
+      }),
+    };
+
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          specialPrice: true,
+          images: true,
+          inStock: true,
+          averageRating: true,
+          reviewCount: true,
+          brand: { select: { id: true, name: true, slug: true } },
+        },
+        orderBy: this.buildOrderBy(dto.sortBy),
+        skip: dto.skip || 0,
+        take: dto.take || 20,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      data: products,
+      total,
+      meta: {
+        skip: dto.skip || 0,
+        take: dto.take || 20,
+        page: Math.floor((dto.skip || 0) / (dto.take || 20)) + 1,
+        pageCount: Math.ceil(total / (dto.take || 20)) || 1,
+      },
+    };
+  }
+
+  private buildOrderBy(sortBy?: string): any {
+    switch (sortBy) {
+      case 'price_asc':
+        return { price: 'asc' };
+      case 'price_desc':
+        return { price: 'desc' };
+      case 'rating':
+        return { averageRating: 'desc' };
+      case 'newest':
+        return { createdAt: 'desc' };
+      default:
+        return { position: 'asc' };
+    }
   }
 }

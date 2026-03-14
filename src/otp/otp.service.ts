@@ -127,6 +127,7 @@ export class OtpService {
   }
 
   // ─── Store OTP ───────────────────────────────────────────────
+  // In storeOtp method, use upsert instead of create:
   async storeOtp(
     channel: OtpChannel,
     options: SendOtpOptions,
@@ -135,7 +136,7 @@ export class OtpService {
     const expirySeconds = OTP_CONFIG.EXPIRY_SECONDS[options.purpose];
     const expiresAt = new Date(Date.now() + expirySeconds * 1000);
 
-    // Invalidate previous OTPs
+    // ✅ Invalidate previous OTPs first
     await this.prisma.verificationOtp.updateMany({
       where: {
         target: options.target,
@@ -144,10 +145,11 @@ export class OtpService {
         expiresAt: { gt: new Date() },
       },
       data: {
-        expiresAt: new Date(),
+        expiresAt: new Date(), // ✅ Expire immediately
       },
     });
 
+    // ✅ Create new OTP
     await this.prisma.verificationOtp.create({
       data: {
         channel,
@@ -195,12 +197,14 @@ export class OtpService {
     const isValid = await this.compareCode(options.code, otp.codeHash);
 
     if (!isValid) {
-      await this.prisma.verificationOtp.update({
+      // ✅ Use atomic increment
+      const updated = await this.prisma.verificationOtp.update({
         where: { id: otp.id },
-        data: { attempts: otp.attempts + 1 },
+        data: { attempts: { increment: 1 } },
+        select: { attempts: true, maxAttempts: true },
       });
 
-      if (otp.attempts + 1 >= otp.maxAttempts) {
+      if (updated.attempts >= updated.maxAttempts) {
         return { success: false, message: OTP_ERROR.MAX_ATTEMPTS };
       }
 

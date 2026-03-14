@@ -208,3 +208,10 @@ enum ShippingRuleType {
   PRICE_BASED // Free above X, else Y
   ITEM_BASED // Cost per item
 }
+
+enum FlashSaleStatus {
+  SCHEDULED
+  ACTIVE
+  ENDED
+  CANCELLED
+}

@@ -9,23 +9,34 @@ model ProductVariant {
 
   name              String            @db.VarChar(191)
   sku               String?           @unique @db.VarChar(100)
+  barcode           String?           @db.VarChar(100) // NEW
+
   price             Decimal?          @db.Decimal(18, 4)
   specialPrice      Decimal?          @map("special_price") @db.Decimal(18, 4)
   specialPriceType  SpecialPriceType? @map("special_price_type")
   specialPriceStart DateTime?         @map("special_price_start")
   specialPriceEnd   DateTime?         @map("special_price_end")
 
-  manageStock Boolean? @map("manage_stock")
-  qty         Int?
-  inStock     Boolean? @map("in_stock")
+  // Inventory
+  manageStock       Boolean? @map("manage_stock")
+  qty               Int?
+  reservedQty       Int?     @default(0) @map("reserved_qty") // NEW
+  inStock           Boolean? @map("in_stock")
+  lowStockThreshold Int?     @map("low_stock_threshold") // NEW
+
+  // Physical attributes
+  weight Decimal? @db.Decimal(10, 2) // NEW
+  length Decimal? @db.Decimal(10, 2) // NEW
+  width  Decimal? @db.Decimal(10, 2) // NEW
+  height Decimal? @db.Decimal(10, 2) // NEW
 
   isDefault Boolean @default(false) @map("is_default")
   isActive  Boolean @default(true) @map("is_active")
+  position  Int     @default(0)
 
   images Json? @db.JsonB
 
   inventoryLogs InventoryLog[]
-
   orderProducts OrderProduct[]
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -35,7 +46,11 @@ model ProductVariant {
 
   @@index([productId])
   @@index([sku])
+  @@index([barcode]) // NEW
   @@index([isActive, deletedAt])
   @@index([deletedAt])
+  @@index([productId, isDefault]) // NEW
+  @@index([productId, position]) // NEW
+  @@index([qty]) // NEW: For stock queries
   @@map("product_variants")
 }

@@ -155,25 +155,13 @@ export class CustomerService {
     });
 
     if (!customer) throw new NotFoundException(AUTH_ERROR.CUSTOMER_NOT_FOUND);
-
     if (!customer.isGuest) {
       throw new BadRequestException('Account is already a full account');
     }
-
     if (!customer.phoneVerified) {
       throw new ForbiddenException(
         'Phone must be verified before upgrading. Use POST /auth/customer/verify-phone/request first.',
       );
-    }
-
-    // Check email uniqueness if provided
-    if (dto.email) {
-      const emailTaken = await this.prisma.customer.findFirst({
-        where: { email: dto.email, id: { not: customerId }, deletedAt: null },
-        select: { id: true },
-      });
-      if (emailTaken)
-        throw new ConflictException(AUTH_ERROR.CUSTOMER_EMAIL_TAKEN);
     }
 
     const hashedPassword = await bcrypt.hash(
@@ -181,26 +169,39 @@ export class CustomerService {
       AUTH_CONFIG.BCRYPT_ROUNDS,
     );
 
-    const updated = await this.prisma.customer.update({
-      where: { id: customerId },
-      data: {
-        isGuest: false,
-        password: hashedPassword,
-        ...(dto.firstName && { firstName: dto.firstName }),
-        ...(dto.lastName && { lastName: dto.lastName }),
-        ...(dto.email && { email: dto.email, emailVerified: false }),
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        phoneVerified: true,
-        email: true,
-        emailVerified: true,
-        isGuest: true,
-        createdAt: true,
-      },
+    // ✅ Use transaction for atomicity
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // ✅ Check email uniqueness inside transaction
+      if (dto.email) {
+        const emailTaken = await tx.customer.findFirst({
+          where: { email: dto.email, id: { not: customerId }, deletedAt: null },
+          select: { id: true },
+        });
+        if (emailTaken)
+          throw new ConflictException(AUTH_ERROR.CUSTOMER_EMAIL_TAKEN);
+      }
+
+      return tx.customer.update({
+        where: { id: customerId },
+        data: {
+          isGuest: false,
+          password: hashedPassword,
+          ...(dto.firstName && { firstName: dto.firstName }),
+          ...(dto.lastName && { lastName: dto.lastName }),
+          ...(dto.email && { email: dto.email, emailVerified: false }),
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          phoneVerified: true,
+          email: true,
+          emailVerified: true,
+          isGuest: true,
+          createdAt: true,
+        },
+      });
     });
 
     this.logger.log(`Guest ${customerId} upgraded to full account`);
@@ -223,5 +224,75 @@ export class CustomerService {
       'All_DEVICES',
     );
     this.logger.log(`Customer ${customerId} deactivated their account`);
+  }
+
+  // src/customer/customer.service.ts
+
+  async getOrders(
+    customerId: string,
+    skip: number = 0,
+    take: number = 20,
+  ): Promise<{ data: any[]; total: number }> {
+    const [data, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { customerId, deletedAt: null },
+        include: {
+          products: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  images: true,
+                },
+              },
+            },
+          },
+          packages: {
+            include: {
+              rider: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.order.count({
+        where: { customerId, deletedAt: null },
+      }),
+    ]);
+
+    return { data, total };
+  }
+
+  async getOrder(orderId: string, customerId: string): Promise<any> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, customerId, deletedAt: null },
+      include: {
+        products: {
+          include: {
+            product: true,
+            productVariant: true,
+          },
+        },
+        packages: {
+          include: {
+            rider: true,
+            courier: true,
+          },
+        },
+        statusHistory: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    return order;
   }
 }

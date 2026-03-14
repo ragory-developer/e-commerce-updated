@@ -1,17 +1,14 @@
+// src/flash-sale/flash-sale.service.ts (COMPLETE REWRITE)
+
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
   Logger,
-  // ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
-import {
-  CreateFlashSaleDto,
-  UpdateFlashSaleDto,
-  ListFlashSalesDto,
-} from './dto';
+import { Prisma, FlashSaleStatus } from '@prisma/client';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class FlashSaleService {
@@ -20,133 +17,158 @@ export class FlashSaleService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ══════════════════════════════════════════════════════════════
+  // CRON: AUTO-UPDATE FLASH SALE STATUS
+  // ══════════════════════════════════════════════════════════════
+  @Cron(CronExpression.EVERY_MINUTE)
+  async updateFlashSaleStatuses() {
+    const now = new Date();
+
+    // Start scheduled sales
+    const started = await this.prisma.flashSale.updateMany({
+      where: {
+        status: FlashSaleStatus.SCHEDULED,
+        startTime: { lte: now },
+        endTime: { gt: now },
+        deletedAt: null,
+      },
+      data: { status: FlashSaleStatus.ACTIVE },
+    });
+
+    if (started.count > 0) {
+      this.logger.log(`Started ${started.count} flash sales`);
+    }
+
+    // End active sales
+    const ended = await this.prisma.flashSale.updateMany({
+      where: {
+        status: FlashSaleStatus.ACTIVE,
+        endTime: { lte: now },
+        deletedAt: null,
+      },
+      data: { status: FlashSaleStatus.ENDED },
+    });
+
+    if (ended.count > 0) {
+      this.logger.log(`Ended ${ended.count} flash sales`);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
   // CREATE FLASH SALE
   // ══════════════════════════════════════════════════════════════
-  async create(dto: CreateFlashSaleDto, createdBy: string): Promise<object> {
-    // Verify all products exist
-    const productIds = dto.products.map((p) => p.productId);
+  async create(dto: any, createdBy: string): Promise<object> {
+    // Validate timing
+    const now = new Date();
+    const startTime = new Date(dto.startTime);
+    const endTime = new Date(dto.endTime);
+
+    if (startTime >= endTime) {
+      throw new BadRequestException('End time must be after start time');
+    }
+
+    // Determine initial status
+    let status = FlashSaleStatus.SCHEDULED;
+    if (startTime <= now && endTime > now) {
+      status = FlashSaleStatus.ACTIVE;
+    } else if (endTime <= now) {
+      throw new BadRequestException(
+        'Cannot create flash sale with past end time',
+      );
+    }
+
+    // Verify all products exist and have sufficient stock
+    const productIds = dto.products.map((p: any) => p.productId);
     const products = await this.prisma.product.findMany({
       where: {
         id: { in: productIds },
         deletedAt: null,
       },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        qty: true,
+        inStock: true,
+        variants: {
+          where: { deletedAt: null },
+          select: { id: true, qty: true, inStock: true },
+        },
+      },
     });
 
     if (products.length !== productIds.length) {
       throw new NotFoundException('One or more products not found');
     }
 
+    // Validate stock availability
+    for (const productDto of dto.products) {
+      const product = products.find((p) => p.id === productDto.productId);
+
+      if (productDto.productVariantId) {
+        const variant = product?.variants.find(
+          (v) => v.id === productDto.productVariantId,
+        );
+        if (!variant) {
+          throw new NotFoundException(
+            `Variant ${productDto.productVariantId} not found`,
+          );
+        }
+        if (!variant.inStock || (variant.qty && variant.qty < productDto.qty)) {
+          throw new BadRequestException(
+            `Insufficient stock for variant ${productDto.productVariantId}. Available: ${variant.qty}, Requested: ${productDto.qty}`,
+          );
+        }
+      } else {
+        if (
+          !product?.inStock ||
+          (product.qty && product.qty < productDto.qty)
+        ) {
+          throw new BadRequestException(
+            `Insufficient stock for product ${product?.name}. Available: ${product?.qty}, Requested: ${productDto.qty}`,
+          );
+        }
+      }
+
+      // Validate price
+      if (productDto.price <= 0) {
+        throw new BadRequestException(
+          'Flash sale price must be greater than 0',
+        );
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // Create flash sale
       const flashSale = await tx.flashSale.create({
         data: {
-          campaignName: dto.campaignName,
-          translations: dto.translations
-            ? (dto.translations as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
+          name: dto.name,
+          description: dto.description,
+          startTime,
+          endTime,
+          status,
+          discountType: dto.discountType || 'FIXED',
+          discountValue: dto.discountValue || 0,
+          translations: dto.translations,
+          isActive: true,
           createdBy,
-        },
-        select: {
-          id: true,
-          campaignName: true,
-          translations: true,
-          createdAt: true,
-          updatedAt: true,
         },
       });
 
-      // Create flash sale products
       const flashSaleProducts = await Promise.all(
-        dto.products.map((product, index) =>
+        dto.products.map((product: any, index: number) =>
           tx.flashSaleProduct.create({
             data: {
               flashSaleId: flashSale.id,
               productId: product.productId,
+              productVariantId: product.productVariantId || null,
               price: product.price,
               qty: product.qty,
               sold: 0,
-              endDate: new Date(product.endDate),
+              reserved: 0,
+              endDate: endTime,
               position: product.position ?? index,
+              isActive: true,
               createdBy,
             },
             include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  slug: true,
-                  price: true,
-                },
-              },
-            },
-          }),
-        ),
-      );
-
-      this.logger.log(
-        `Flash sale created: ${flashSale.campaignName} with ${flashSaleProducts.length} products by ${createdBy}`,
-      );
-
-      return {
-        ...flashSale,
-        products: flashSaleProducts,
-      };
-    });
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // GET ALL FLASH SALES
-  // ══════════════════════════════════════════════════════════════
-  async findAll(
-    dto: ListFlashSalesDto,
-  ): Promise<{ data: object[]; total: number; meta: object }> {
-    const where: Prisma.FlashSaleWhereInput = {
-      deletedAt: null,
-      ...(dto.search && {
-        campaignName: { contains: dto.search, mode: 'insensitive' },
-      }),
-    };
-
-    // If activeOnly, filter products with endDate > now
-    const [data, total] = await Promise.all([
-      this.prisma.flashSale.findMany({
-        where,
-        select: {
-          id: true,
-          campaignName: true,
-          translations: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: {
-            select: {
-              products: {
-                where: {
-                  deletedAt: null,
-                  ...(dto.activeOnly && {
-                    endDate: { gt: new Date() },
-                    qty: { gt: 0 },
-                  }),
-                },
-              },
-            },
-          },
-          products: {
-            where: {
-              deletedAt: null,
-              ...(dto.activeOnly && {
-                endDate: { gt: new Date() },
-                qty: { gt: 0 },
-              }),
-            },
-            select: {
-              id: true,
-              productId: true,
-              price: true,
-              qty: true,
-              sold: true,
-              endDate: true,
-              position: true,
               product: {
                 select: {
                   id: true,
@@ -157,90 +179,168 @@ export class FlashSaleService {
                 },
               },
             },
-            orderBy: { position: 'asc' },
-            take: 10, // Limit products per flash sale in list view
+          }),
+        ),
+      );
+
+      this.logger.log(
+        `Flash sale created: ${flashSale.name} with ${flashSaleProducts.length} products (Status: ${status})`,
+      );
+
+      return {
+        ...flashSale,
+        products: flashSaleProducts,
+      };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // RESERVE FLASH SALE STOCK (Called during checkout)
+  // ══════════════════════════════════════════════════════════════
+  async reserveStock(
+    flashSaleProductId: string,
+    quantity: number,
+    customerId: string,
+  ): Promise<{ success: boolean; message?: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      const flashSaleProduct = await tx.flashSaleProduct.findFirst({
+        where: { id: flashSaleProductId, deletedAt: null },
+        select: {
+          id: true,
+          qty: true,
+          sold: true,
+          reserved: true,
+          isActive: true,
+          endDate: true,
+          flashSale: {
+            select: { status: true },
           },
         },
-        orderBy: { createdAt: 'desc' },
-        skip: dto.skip,
-        take: dto.take,
-      }),
-      this.prisma.flashSale.count({ where }),
-    ]);
+      });
 
-    return {
-      data,
-      total,
-      meta: {
-        skip: dto.skip,
-        take: dto.take,
-        page: Math.floor(dto.skip / dto.take) + 1,
-        pageCount: Math.ceil(total / dto.take),
+      if (!flashSaleProduct) {
+        return { success: false, message: 'Flash sale product not found' };
+      }
+
+      // Check if flash sale is active
+      if (flashSaleProduct.flashSale.status !== FlashSaleStatus.ACTIVE) {
+        return { success: false, message: 'Flash sale is not active' };
+      }
+
+      // Check if flash sale has ended
+      if (new Date() > flashSaleProduct.endDate) {
+        return { success: false, message: 'Flash sale has ended' };
+      }
+
+      // Check availability (sold + reserved must not exceed qty)
+      const available =
+        flashSaleProduct.qty -
+        flashSaleProduct.sold -
+        flashSaleProduct.reserved;
+
+      if (available < quantity) {
+        return {
+          success: false,
+          message: `Only ${available} items available in flash sale`,
+        };
+      }
+
+      // Reserve stock (atomic increment)
+      await tx.flashSaleProduct.update({
+        where: { id: flashSaleProductId },
+        data: {
+          reserved: { increment: quantity },
+        },
+      });
+
+      this.logger.log(
+        `Flash sale stock reserved: ${flashSaleProductId}, qty: ${quantity}, customer: ${customerId}`,
+      );
+
+      return { success: true };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // RELEASE FLASH SALE STOCK (Called when checkout expires/fails)
+  // ══════════════════════════════════════════════════════════════
+  async releaseStock(
+    flashSaleProductId: string,
+    quantity: number,
+  ): Promise<void> {
+    await this.prisma.flashSaleProduct.update({
+      where: { id: flashSaleProductId },
+      data: {
+        reserved: { decrement: quantity },
       },
-    };
+    });
+
+    this.logger.log(
+      `Flash sale stock released: ${flashSaleProductId}, qty: ${quantity}`,
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // CONFIRM FLASH SALE PURCHASE (Called when order is confirmed)
+  // ══════════════════════════════════════════════════════════════
+  async confirmPurchase(
+    flashSaleProductId: string,
+    quantity: number,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      // Move from reserved to sold
+      await tx.flashSaleProduct.update({
+        where: { id: flashSaleProductId },
+        data: {
+          sold: { increment: quantity },
+          reserved: { decrement: quantity },
+        },
+      });
+
+      this.logger.log(
+        `Flash sale purchase confirmed: ${flashSaleProductId}, qty: ${quantity}`,
+      );
+    });
   }
 
   // ══════════════════════════════════════════════════════════════
   // GET ACTIVE FLASH SALES (PUBLIC)
   // ══════════════════════════════════════════════════════════════
-  async findActive(): Promise<
-    Prisma.FlashSaleGetPayload<{
-      select: {
-        id: true;
-        campaignName: true;
-        translations: true;
-        products: {
-          select: {
-            id: true;
-            productId: true;
-            price: true;
-            qty: true;
-            sold: true;
-            endDate: true;
-            position: true;
-            product: {
-              select: {
-                id: true;
-                name: true;
-                slug: true;
-                price: true;
-                images: true;
-              };
-            };
-          };
-        };
-      };
-    }>[]
-  > {
+  async getActiveFlashSales(): Promise<any[]> {
     const now = new Date();
 
     return this.prisma.flashSale.findMany({
       where: {
         deletedAt: null,
-        products: {
-          some: {
-            deletedAt: null,
-            endDate: { gt: now },
-            qty: { gt: 0 },
-          },
-        },
+        status: FlashSaleStatus.ACTIVE,
+        isActive: true,
+        startTime: { lte: now },
+        endTime: { gt: now },
       },
       select: {
         id: true,
-        campaignName: true,
+        name: true,
+        description: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        discountType: true,
+        discountValue: true,
         translations: true,
         products: {
           where: {
             deletedAt: null,
+            isActive: true,
             endDate: { gt: now },
-            qty: { gt: 0 },
           },
           select: {
             id: true,
             productId: true,
+            productVariantId: true,
             price: true,
             qty: true,
             sold: true,
+            reserved: true,
             endDate: true,
             position: true,
             product: {
@@ -250,6 +350,8 @@ export class FlashSaleService {
                 slug: true,
                 price: true,
                 images: true,
+                averageRating: true,
+                reviewCount: true,
               },
             },
           },
@@ -259,227 +361,29 @@ export class FlashSaleService {
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        startTime: 'asc',
       },
     });
   }
 
   // ══════════════════════════════════════════════════════════════
-  // GET FLASH SALE BY ID
+  // CHECK FLASH SALE AVAILABILITY (for product detail page)
   // ══════════════════════════════════════════════════════════════
-  async findOne(id: string): Promise<object> {
-    const flashSale = await this.prisma.flashSale.findFirst({
-      where: { id, deletedAt: null },
-      include: {
-        products: {
-          where: { deletedAt: null },
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                price: true,
-                images: true,
-                inStock: true,
-              },
-            },
-          },
-          orderBy: { position: 'asc' },
-        },
-      },
-    });
-
-    if (!flashSale) {
-      throw new NotFoundException('Flash sale not found');
-    }
-
-    return flashSale;
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // UPDATE FLASH SALE
-  // ══════════════════════════════════════════════════════════════
-  async update(
-    id: string,
-    dto: UpdateFlashSaleDto,
-    updatedBy: string,
-  ): Promise<any> {
-    const existing = await this.prisma.flashSale.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('Flash sale not found');
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      // Update flash sale
-      await tx.flashSale.update({
-        where: { id },
-        data: {
-          ...(dto.campaignName && { campaignName: dto.campaignName }),
-          ...(dto.translations !== undefined && {
-            translations: dto.translations as Prisma.InputJsonValue,
-          }),
-          updatedBy,
-        },
-      });
-
-      // Replace products if provided
-      if (dto.products?.length) {
-        const productIds = dto.products.map((p) => p.productId);
-
-        const products = await tx.product.findMany({
-          where: { id: { in: productIds }, deletedAt: null },
-          select: { id: true },
-        });
-
-        if (products.length !== productIds.length) {
-          throw new NotFoundException('One or more products not found');
-        }
-
-        // Soft delete old flash sale products
-        await tx.flashSaleProduct.updateMany({
-          where: { flashSaleId: id, deletedAt: null },
-          data: {
-            deletedAt: new Date(),
-            deletedBy: updatedBy,
-          },
-        });
-
-        // Insert new products
-        await Promise.all(
-          dto.products.map((product, index) =>
-            tx.flashSaleProduct.create({
-              data: {
-                flashSaleId: id,
-                productId: product.productId,
-                price: product.price,
-                qty: product.qty,
-                sold: 0,
-                endDate: new Date(product.endDate),
-                position: product.position ?? index,
-                createdBy: updatedBy,
-              },
-            }),
-          ),
-        );
-      }
-
-      // Fetch updated flash sale safely
-      const updated = await tx.flashSale.findUniqueOrThrow({
-        where: { id },
-        include: {
-          products: {
-            where: { deletedAt: null },
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  slug: true,
-                  price: true,
-                },
-              },
-            },
-            orderBy: { position: 'asc' },
-          },
-        },
-      });
-
-      this.logger.log(`Flash sale updated: ${id} by ${updatedBy}`);
-
-      return updated;
-    });
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // DELETE FLASH SALE (SOFT DELETE)
-  // ══════════════════════════════════════════════════════════════
-  async remove(id: string, deletedBy: string): Promise<void> {
-    const flashSale = await this.prisma.flashSale.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true, campaignName: true },
-    });
-
-    if (!flashSale) {
-      throw new NotFoundException('Flash sale not found');
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      // Soft delete flash sale products
-      await tx.flashSaleProduct.updateMany({
-        where: { flashSaleId: id, deletedAt: null },
-        data: {
-          deletedAt: new Date(),
-          deletedBy,
-        },
-      });
-
-      // Soft delete flash sale
-      await tx.flashSale.update({
-        where: { id },
-        data: {
-          deletedAt: new Date(),
-          deletedBy,
-        },
-      });
-    });
-
-    this.logger.log(
-      `Flash sale deleted: ${flashSale.campaignName} by ${deletedBy}`,
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // INCREMENT SOLD COUNT (called by OrderService)
-  // ══════════════════════════════════════════════════════════════
-  async incrementSold(
-    flashSaleProductId: string,
-    quantity: number,
-  ): Promise<void> {
-    const flashSaleProduct = await this.prisma.flashSaleProduct.findFirst({
-      where: { id: flashSaleProductId, deletedAt: null },
-      select: { id: true, qty: true, sold: true },
-    });
-
-    if (!flashSaleProduct) {
-      throw new NotFoundException('Flash sale product not found');
-    }
-
-    if (flashSaleProduct.sold + quantity > flashSaleProduct.qty) {
-      throw new BadRequestException('Not enough quantity available');
-    }
-
-    await this.prisma.flashSaleProduct.update({
-      where: { id: flashSaleProductId },
-      data: {
-        sold: { increment: quantity },
-      },
-    });
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // CHECK AVAILABILITY (called by OrderService)
-  // ══════════════════════════════════════════════════════════════
-  async checkAvailability(
+  async checkFlashSaleForProduct(
     productId: string,
-    quantity: number,
-  ): Promise<{
-    available: boolean;
-    flashSaleProduct?: any;
-    message?: string;
-  }> {
+    variantId?: string,
+  ): Promise<any | null> {
     const now = new Date();
 
     const flashSaleProduct = await this.prisma.flashSaleProduct.findFirst({
       where: {
         productId,
+        ...(variantId && { productVariantId: variantId }),
         deletedAt: null,
+        isActive: true,
         endDate: { gt: now },
         flashSale: {
+          status: FlashSaleStatus.ACTIVE,
           deletedAt: null,
         },
       },
@@ -488,31 +392,33 @@ export class FlashSaleService {
         price: true,
         qty: true,
         sold: true,
+        reserved: true,
         endDate: true,
+        flashSale: {
+          select: {
+            id: true,
+            name: true,
+            startTime: true,
+            endTime: true,
+            discountType: true,
+            discountValue: true,
+          },
+        },
       },
-      orderBy: { endDate: 'asc' }, // Get the earliest ending sale
+      orderBy: { endDate: 'asc' },
     });
 
-    if (!flashSaleProduct) {
-      return {
-        available: false,
-        message: 'No active flash sale for this product',
-      };
-    }
+    if (!flashSaleProduct) return null;
 
-    const availableQty = flashSaleProduct.qty - flashSaleProduct.sold;
-
-    if (availableQty < quantity) {
-      return {
-        available: false,
-        flashSaleProduct,
-        message: `Only ${availableQty} items available in flash sale`,
-      };
-    }
+    const available =
+      flashSaleProduct.qty - flashSaleProduct.sold - flashSaleProduct.reserved;
 
     return {
-      available: true,
-      flashSaleProduct,
+      ...flashSaleProduct,
+      available,
+      percentageSold: Math.round(
+        (flashSaleProduct.sold / flashSaleProduct.qty) * 100,
+      ),
     };
   }
 }
