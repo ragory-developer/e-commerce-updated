@@ -36,18 +36,11 @@ function toDecimal(value: number | undefined | null): Prisma.Decimal | null {
 
 // ─── Full product include for reads ───────────────────────────
 const PRODUCT_FULL_INCLUDE = {
-  brand: { select: { id: true, name: true, slug: true } },
+  brand: { select: { id: true, name: true, slug: true, image: true } },
   taxClass: { select: { id: true, name: true } },
   categories: {
-    where: {
-      category: {
-        deletedAt: null,
-      },
-    },
     include: {
-      category: {
-        select: { id: true, name: true, slug: true },
-      },
+      category: { select: { id: true, name: true, slug: true, image: true } },
     },
   },
   tags: {
@@ -60,7 +53,9 @@ const PRODUCT_FULL_INCLUDE = {
       attribute: { select: { id: true, name: true, type: true } },
       value: {
         include: {
-          attributeValue: { select: { id: true, value: true } },
+          attributeValue: {
+            select: { id: true, value: true, label: true, hexColor: true },
+          },
         },
       },
     },
@@ -84,23 +79,53 @@ const PRODUCT_FULL_INCLUDE = {
   relatedTo: {
     include: {
       relatedProduct: {
-        select: { id: true, name: true, slug: true, images: true },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          specialPrice: true,
+          images: true,
+          inStock: true,
+          averageRating: true,
+        },
       },
     },
+    orderBy: { position: 'asc' as const },
   },
   upSellTo: {
     include: {
       upSellProduct: {
-        select: { id: true, name: true, slug: true, images: true },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          specialPrice: true,
+          images: true,
+          inStock: true,
+          averageRating: true,
+        },
       },
     },
+    orderBy: { position: 'asc' as const },
   },
   crossSellTo: {
     include: {
       crossSellProduct: {
-        select: { id: true, name: true, slug: true, images: true },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          specialPrice: true,
+          images: true,
+          inStock: true,
+          averageRating: true,
+        },
       },
     },
+    orderBy: { position: 'asc' as const },
   },
 };
 
@@ -109,7 +134,6 @@ const PRODUCT_SUMMARY_SELECT = {
   id: true,
   name: true,
   slug: true,
-  description: true,
   shortDescription: true,
   sku: true,
   price: true,
@@ -117,26 +141,28 @@ const PRODUCT_SUMMARY_SELECT = {
   specialPriceType: true,
   specialPriceStart: true,
   specialPriceEnd: true,
+  minPrice: true,
+  maxPrice: true,
   images: true,
   inStock: true,
+  qty: true,
+  manageStock: true,
   isActive: true,
+  isFeatured: true,
+  averageRating: true,
+  reviewCount: true,
   newFrom: true,
   newTo: true,
   viewed: true,
   seo: true,
+  weight: true,
   createdAt: true,
   updatedAt: true,
   brand: { select: { id: true, name: true, slug: true } },
   categories: {
-    where: {
-      category: {
-        deletedAt: null,
-      },
-    },
     select: {
-      category: {
-        select: { id: true, name: true, slug: true },
-      },
+      isPrimary: true,
+      category: { select: { id: true, name: true, slug: true } },
     },
   },
   tags: {
@@ -157,10 +183,11 @@ const PRODUCT_SUMMARY_SELECT = {
       specialPriceStart: true,
       specialPriceEnd: true,
       inStock: true,
+      qty: true,
+      reservedQty: true,
       isDefault: true,
       isActive: true,
       position: true,
-      qty: true,
     },
     orderBy: { position: 'asc' as const },
   },
@@ -168,6 +195,7 @@ const PRODUCT_SUMMARY_SELECT = {
     select: {
       variants: { where: { deletedAt: null } },
       categories: true,
+      reviews: { where: { isApproved: true, deletedAt: null } },
     },
   },
 };
@@ -215,6 +243,8 @@ export class ProductService {
         return { name: 'asc' };
       case 'name_desc':
         return { name: 'desc' };
+      case 'rating':
+        return { averageRating: 'desc' };
       case 'newest':
       default:
         return { createdAt: 'desc' };
@@ -252,7 +282,7 @@ export class ProductService {
     const slug = await this.generateUniqueSlug(dto.name);
     const hasVariants = !!(dto.variants && dto.variants.length > 0);
 
-    // Check SKU uniqueness (global)
+    // ── SKU uniqueness checks ────────────────────────────────
     if (!hasVariants && dto.sku) {
       const skuExists = await this.prisma.product.findFirst({
         where: { sku: dto.sku, deletedAt: null },
@@ -263,7 +293,6 @@ export class ProductService {
       }
     }
 
-    // Check variant SKU uniqueness
     if (hasVariants && dto.variants) {
       for (const v of dto.variants) {
         if (v.sku) {
@@ -291,6 +320,13 @@ export class ProductService {
           brandId: dto.brandId ?? null,
           taxClassId: dto.taxClassId ?? null,
           isActive: dto.isActive ?? true,
+          isFeatured: dto.isFeatured ?? false,
+
+          // Shipping dimensions
+          weight: dto.weight != null ? toDecimal(dto.weight) : null,
+          length: dto.length ?? '',
+          width: dto.width ?? '',
+          height: dto.height ?? '',
 
           // Global pricing — only when NO variants
           price: !hasVariants ? toDecimal(dto.price) : null,
@@ -311,10 +347,16 @@ export class ProductService {
           manageStock: !hasVariants ? (dto.manageStock ?? false) : false,
           qty: !hasVariants && dto.qty != null ? dto.qty : null,
           inStock: !hasVariants ? (dto.inStock ?? true) : true,
+          lowStockThreshold: dto.lowStockThreshold ?? null,
 
           // SEO
           seo: dto.seo
             ? (dto.seo as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
+
+          // Translations
+          translations: dto.translations
+            ? (dto.translations as unknown as Prisma.InputJsonValue)
             : Prisma.JsonNull,
 
           // Additional
@@ -328,15 +370,17 @@ export class ProductService {
       // ─── 2. Link Categories ─────────────────────────────────
       if (dto.categoryIds && dto.categoryIds.length > 0) {
         await tx.productCategory.createMany({
-          data: dto.categoryIds.map((categoryId) => ({
+          data: dto.categoryIds.map((categoryId, idx) => ({
             productId: product.id,
             categoryId,
+            isPrimary: idx === 0,
+            position: idx,
           })),
           skipDuplicates: true,
         });
       }
 
-      // ─── 3. Link Tags ──────────────────────────────────────
+      // ─── 3. Link Tags ───────────────────────────────────────
       if (dto.tagIds && dto.tagIds.length > 0) {
         await tx.productTag.createMany({
           data: dto.tagIds.map((tagId) => ({
@@ -378,6 +422,15 @@ export class ProductService {
 
           if (varItem.variationId) {
             variationId = varItem.variationId;
+            // Map existing variation's provided values
+            for (const val of varItem.values) {
+              if (val.variationValueId) {
+                variationValueMap.set(
+                  `${varItem.name}:${val.label}`,
+                  val.variationValueId,
+                );
+              }
+            }
           } else {
             const varUid = slugify(varItem.name) || 'variation';
             let candidateUid = varUid;
@@ -442,19 +495,6 @@ export class ProductService {
             }
           }
 
-          // If using existing variation, map its values
-          if (varItem.variationId) {
-            for (const val of varItem.values) {
-              if (val.variationValueId) {
-                variationValueMap.set(
-                  `${varItem.name}:${val.label}`,
-                  val.variationValueId,
-                );
-              }
-            }
-          }
-
-          // Create ProductVariation junction
           await tx.productVariation.create({
             data: {
               productId: product.id,
@@ -532,13 +572,26 @@ export class ProductService {
               })),
               skipDuplicates: true,
             });
-
-            // Increment reference counts
             await tx.media.updateMany({
               where: { id: { in: v.mediaIds } },
               data: { referenceCount: { increment: 1 } },
             });
           }
+        }
+
+        // Compute price range for variant products
+        const variantPrices = dto.variants
+          .map((v) => v.price)
+          .filter((p): p is number => p != null);
+
+        if (variantPrices.length > 0) {
+          await tx.product.update({
+            where: { id: product.id },
+            data: {
+              minPrice: toDecimal(Math.min(...variantPrices)),
+              maxPrice: toDecimal(Math.max(...variantPrices)),
+            },
+          });
         }
       }
 
@@ -600,43 +653,21 @@ export class ProductService {
   async findAll(dto: ListProductsDto) {
     const where: Prisma.ProductWhereInput = {
       deletedAt: null,
-
       ...(dto.search && {
         OR: [
           { name: { contains: dto.search, mode: 'insensitive' as const } },
           { sku: { contains: dto.search, mode: 'insensitive' as const } },
         ],
       }),
-
-      ...(dto.brandId && {
-        brandId: dto.brandId,
-      }),
-
-      ...(dto.isActive !== undefined && {
-        isActive: dto.isActive,
-      }),
-
-      ...(dto.inStock !== undefined && {
-        inStock: dto.inStock,
-      }),
-
+      ...(dto.brandId && { brandId: dto.brandId }),
+      ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      ...(dto.inStock !== undefined && { inStock: dto.inStock }),
       ...(dto.categoryId && {
-        categories: {
-          some: {
-            categoryId: dto.categoryId,
-          },
-        },
+        categories: { some: { categoryId: dto.categoryId } },
       }),
-
       ...(dto.tagId && {
-        tags: {
-          some: {
-            tagId: dto.tagId,
-          },
-        },
+        tags: { some: { tagId: dto.tagId } },
       }),
-
-      // Price range filter
       ...((dto.priceMin !== undefined || dto.priceMax !== undefined) && {
         OR: [
           {
@@ -662,7 +693,7 @@ export class ProductService {
 
     const orderBy = this.buildOrderBy(dto.sortBy);
 
-    // ─── DETAIL MODE ─────────────────────────
+    // ─── DETAIL MODE: same shape as findOne ───────────────────
     if (dto.detail) {
       const [products, total] = await Promise.all([
         this.prisma.product.findMany({
@@ -691,7 +722,7 @@ export class ProductService {
       };
     }
 
-    // ─── SUMMARY MODE ───────────────────────
+    // ─── SUMMARY MODE (default) ───────────────────────────────
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
@@ -716,7 +747,7 @@ export class ProductService {
   }
 
   // ══════════════════════════════════════════════════════════════
-  // GET SINGLE PRODUCT BY ID (includes media from EntityMedia)
+  // GET SINGLE PRODUCT BY ID
   // ══════════════════════════════════════════════════════════════
   async findOne(id: string) {
     const product = await this.prisma.product.findFirst({
@@ -730,17 +761,14 @@ export class ProductService {
 
     // Increment view count (fire and forget)
     this.prisma.product
-      .update({
-        where: { id },
-        data: { viewed: { increment: 1 } },
-      })
+      .update({ where: { id }, data: { viewed: { increment: 1 } } })
       .catch(() => {});
 
     return this.attachMedia(product);
   }
 
   // ══════════════════════════════════════════════════════════════
-  // GET SINGLE PRODUCT BY SLUG (for frontend SEO-friendly URLs)
+  // GET SINGLE PRODUCT BY SLUG
   // ══════════════════════════════════════════════════════════════
   async findBySlug(slug: string) {
     const product = await this.prisma.product.findFirst({
@@ -752,19 +780,15 @@ export class ProductService {
       throw new NotFoundException('Product not found');
     }
 
-    // Increment view count (fire and forget)
     this.prisma.product
-      .update({
-        where: { id: product.id },
-        data: { viewed: { increment: 1 } },
-      })
+      .update({ where: { id: product.id }, data: { viewed: { increment: 1 } } })
       .catch(() => {});
 
     return this.attachMedia(product);
   }
 
   // ══════════════════════════════════════════════════════════════
-  // GET PRODUCTS BY CATEGORY SLUG (for storefront category pages)
+  // GET PRODUCTS BY CATEGORY SLUG
   // ══════════════════════════════════════════════════════════════
   async findByCategorySlug(categorySlug: string, dto: ListProductsDto) {
     const category = await this.prisma.category.findFirst({
@@ -776,7 +800,6 @@ export class ProductService {
       throw new NotFoundException('Category not found');
     }
 
-    // Override categoryId in dto and delegate to findAll
     dto.categoryId = category.id;
     return this.findAll(dto);
   }
@@ -822,6 +845,16 @@ export class ProductService {
             taxClassId: dto.taxClassId || null,
           }),
           ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+          ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
+
+          // Shipping dimensions
+          ...(dto.weight !== undefined && { weight: toDecimal(dto.weight) }),
+          ...(dto.length !== undefined && { length: dto.length }),
+          ...(dto.width !== undefined && { width: dto.width }),
+          ...(dto.height !== undefined && { height: dto.height }),
+          ...(dto.lowStockThreshold !== undefined && {
+            lowStockThreshold: dto.lowStockThreshold,
+          }),
 
           ...(dto.price !== undefined && {
             price: !hasVariants ? toDecimal(dto.price) : null,
@@ -858,6 +891,11 @@ export class ProductService {
               ? (dto.seo as unknown as Prisma.InputJsonValue)
               : Prisma.JsonNull,
           }),
+          ...(dto.translations !== undefined && {
+            translations: dto.translations
+              ? (dto.translations as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          }),
           ...(dto.newFrom !== undefined && {
             newFrom: dto.newFrom ? new Date(dto.newFrom) : null,
           }),
@@ -874,9 +912,11 @@ export class ProductService {
         await tx.productCategory.deleteMany({ where: { productId: id } });
         if (dto.categoryIds.length > 0) {
           await tx.productCategory.createMany({
-            data: dto.categoryIds.map((catId) => ({
+            data: dto.categoryIds.map((catId, idx) => ({
               productId: id,
               categoryId: catId,
+              isPrimary: idx === 0,
+              position: idx,
             })),
             skipDuplicates: true,
           });
@@ -888,10 +928,7 @@ export class ProductService {
         await tx.productTag.deleteMany({ where: { productId: id } });
         if (dto.tagIds.length > 0) {
           await tx.productTag.createMany({
-            data: dto.tagIds.map((tagId) => ({
-              productId: id,
-              tagId,
-            })),
+            data: dto.tagIds.map((tagId) => ({ productId: id, tagId })),
             skipDuplicates: true,
           });
         }
@@ -1030,6 +1067,9 @@ export class ProductService {
         slug: true,
         images: true,
         price: true,
+        specialPrice: true,
+        inStock: true,
+        brand: { select: { id: true, name: true } },
       },
       take: 20,
       orderBy: { name: 'asc' },
@@ -1078,6 +1118,9 @@ export class ProductService {
       where: { productId, deletedAt: null },
       data: updateData,
     });
+
+    // Recompute price range after bulk edit
+    await this.updateProductPriceRange(productId);
 
     this.logger.log(
       `Bulk edit variants: ${dto.field}=${dto.value} for product ${productId}`,
@@ -1154,7 +1197,286 @@ export class ProductService {
       });
     }
 
+    // Recompute product price range
+    if (dto.price !== undefined) {
+      await this.updateProductPriceRange(productId);
+    }
+
     this.logger.log(`Variant updated: ${variantId} by ${updatedBy}`);
     return this.findOne(productId);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // QUICK VIEW (for modal/popup)
+  // ══════════════════════════════════════════════════════════════
+  async getQuickView(slug: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { slug, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        shortDescription: true,
+        price: true,
+        specialPrice: true,
+        specialPriceType: true,
+        specialPriceStart: true,
+        specialPriceEnd: true,
+        minPrice: true,
+        maxPrice: true,
+        images: true,
+        inStock: true,
+        averageRating: true,
+        reviewCount: true,
+        brand: {
+          select: { id: true, name: true, slug: true },
+        },
+        categories: {
+          select: {
+            category: { select: { id: true, name: true, slug: true } },
+          },
+          take: 1,
+        },
+        variants: {
+          where: { deletedAt: null, isActive: true },
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            price: true,
+            specialPrice: true,
+            inStock: true,
+            qty: true,
+            reservedQty: true,
+            isDefault: true,
+          },
+          orderBy: { position: 'asc' },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    // Get media
+    const media = await this.mediaService.getEntityMedia({
+      entityType: 'Product',
+      entityId: product.id,
+    });
+
+    // Check active flash sale
+    const flashSale = await this.prisma.flashSaleProduct.findFirst({
+      where: {
+        productId: product.id,
+        isActive: true,
+        deletedAt: null,
+        endDate: { gte: new Date() },
+        flashSale: {
+          status: 'ACTIVE',
+          isActive: true,
+          startTime: { lte: new Date() },
+          endTime: { gte: new Date() },
+        },
+      },
+      select: {
+        id: true,
+        price: true,
+        qty: true,
+        sold: true,
+        endDate: true,
+        flashSale: {
+          select: { id: true, name: true, startTime: true, endTime: true },
+        },
+      },
+    });
+
+    return {
+      ...product,
+      media,
+      flashSale: flashSale ?? null,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // CHECK STOCK AVAILABILITY
+  // ══════════════════════════════════════════════════════════════
+  async checkStock(productId: string, variantId?: string) {
+    if (variantId) {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { id: variantId, productId, deletedAt: null },
+        select: {
+          id: true,
+          qty: true,
+          reservedQty: true,
+          inStock: true,
+          manageStock: true,
+          lowStockThreshold: true,
+        },
+      });
+
+      if (!variant) {
+        throw new NotFoundException('Variant not found');
+      }
+
+      const available = (variant.qty || 0) - (variant.reservedQty || 0);
+
+      return {
+        inStock: variant.inStock,
+        manageStock: variant.manageStock,
+        quantity: variant.qty,
+        reserved: variant.reservedQty,
+        available,
+        isLowStock: variant.lowStockThreshold
+          ? available <= variant.lowStockThreshold
+          : false,
+      };
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, deletedAt: null },
+      select: {
+        id: true,
+        qty: true,
+        inStock: true,
+        manageStock: true,
+        lowStockThreshold: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return {
+      inStock: product.inStock,
+      manageStock: product.manageStock,
+      quantity: product.qty,
+      reserved: 0,
+      available: product.qty || 0,
+      isLowStock: product.lowStockThreshold
+        ? (product.qty || 0) <= product.lowStockThreshold
+        : false,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // GET RELATED PRODUCTS
+  // ══════════════════════════════════════════════════════════════
+  async getRelatedProducts(productId: string, limit: number = 8) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, deletedAt: null },
+      select: {
+        relatedTo: {
+          include: {
+            relatedProduct: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                price: true,
+                specialPrice: true,
+                images: true,
+                inStock: true,
+                averageRating: true,
+                reviewCount: true,
+                brand: { select: { id: true, name: true, slug: true } },
+              },
+            },
+          },
+          orderBy: { position: 'asc' },
+          take: limit,
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return product.relatedTo.map((r) => r.relatedProduct);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // GET FEATURED PRODUCTS
+  // ══════════════════════════════════════════════════════════════
+  async getFeaturedProducts(limit: number = 10) {
+    return this.prisma.product.findMany({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        isFeatured: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        specialPrice: true,
+        specialPriceType: true,
+        images: true,
+        inStock: true,
+        averageRating: true,
+        reviewCount: true,
+        brand: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: [
+        { averageRating: 'desc' },
+        { reviewCount: 'desc' },
+        { createdAt: 'desc' },
+      ],
+      take: limit,
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // UPDATE PRODUCT RATING (called after review approval)
+  // ══════════════════════════════════════════════════════════════
+  async updateProductRating(productId: string): Promise<void> {
+    const result = await this.prisma.review.aggregate({
+      where: {
+        productId,
+        isApproved: true,
+        deletedAt: null,
+      },
+      _avg: { rating: true },
+      _count: { id: true },
+    });
+
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        averageRating: result._avg.rating
+          ? new Prisma.Decimal(result._avg.rating.toFixed(2))
+          : null,
+        reviewCount: result._count.id,
+      },
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // UPDATE PRODUCT PRICE RANGE (called after variant price changes)
+  // ══════════════════════════════════════════════════════════════
+  async updateProductPriceRange(productId: string): Promise<void> {
+    const variants = await this.prisma.productVariant.findMany({
+      where: { productId, deletedAt: null, isActive: true },
+      select: { price: true },
+    });
+
+    if (variants.length === 0) return;
+
+    const prices = variants
+      .map((v) => v.price)
+      .filter((p): p is Prisma.Decimal => p !== null);
+
+    if (prices.length === 0) return;
+
+    const minPrice = prices.reduce((min, p) => (p.lessThan(min) ? p : min));
+    const maxPrice = prices.reduce((max, p) => (p.greaterThan(max) ? p : max));
+
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { minPrice, maxPrice },
+    });
   }
 }

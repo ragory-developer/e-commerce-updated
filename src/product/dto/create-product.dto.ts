@@ -187,7 +187,7 @@ export class ProductVariantItemDto {
 
   @ApiPropertyOptional({
     example: ['clx_media_001', 'clx_media_002'],
-    description: 'Media IDs for variant images (linked via EntityMedia)',
+    description: 'Media IDs for variant images',
   })
   @IsOptional()
   @IsArray()
@@ -231,14 +231,25 @@ export class CreateProductDto {
   @IsBoolean()
   isActive?: boolean;
 
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
   // ─── Categories & Tags ────────────────────────────────────
-  @ApiPropertyOptional({ example: ['clx_cat_001', 'clx_cat_002'] })
+  @ApiPropertyOptional({
+    example: ['clx_cat_001', 'clx_cat_002'],
+    description: 'Array of category IDs. First ID becomes the primary category.',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   categoryIds?: string[];
 
-  @ApiPropertyOptional({ example: ['clx_tag_001'] })
+  @ApiPropertyOptional({
+    example: ['clx_tag_001'],
+    description: 'Array of tag IDs',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -322,10 +333,46 @@ export class CreateProductDto {
   @IsBoolean()
   inStock?: boolean;
 
-  // ─── Global Media (when NO variants) — via EntityMedia ────
+  @ApiPropertyOptional({
+    example: 5,
+    description: 'Alert threshold for low stock notifications',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  lowStockThreshold?: number;
+
+  // ─── Shipping / Physical Dimensions ───────────────────────
+  @ApiPropertyOptional({ example: 0.5, description: 'Weight in kg' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  weight?: number;
+
+  @ApiPropertyOptional({ example: '30', description: 'Length in cm' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  length?: string;
+
+  @ApiPropertyOptional({ example: '20', description: 'Width in cm' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  width?: string;
+
+  @ApiPropertyOptional({ example: '10', description: 'Height in cm' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  height?: string;
+
+  // ─── Media ────────────────────────────────────────────────
   @ApiPropertyOptional({
     example: ['clx_media_001', 'clx_media_002'],
-    description: 'Media IDs for product images (linked via EntityMedia)',
+    description: 'Media IDs for product images (stored via EntityMedia)',
   })
   @IsOptional()
   @IsArray()
@@ -347,6 +394,16 @@ export class CreateProductDto {
   @Type(() => ProductSeoDto)
   seo?: ProductSeoDto;
 
+  // ─── i18n Translations ────────────────────────────────────
+  @ApiPropertyOptional({
+    type: Object,
+    description: 'Translations JSON',
+    example: { bn: { name: 'ক্লাসিক টি-শার্ট' } },
+  })
+  @IsOptional()
+  @IsObject()
+  translations?: Record<string, any>;
+
   // ─── Additional ───────────────────────────────────────────
   @ApiPropertyOptional({ example: '2026-01-01T00:00:00Z' })
   @IsOptional()
@@ -359,19 +416,28 @@ export class CreateProductDto {
   newTo?: string;
 
   // ─── Linked Products ──────────────────────────────────────
-  @ApiPropertyOptional({ example: ['clx_prod_001'] })
+  @ApiPropertyOptional({
+    example: ['clx_prod_001'],
+    description: 'Related product IDs',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   relatedProductIds?: string[];
 
-  @ApiPropertyOptional({ example: ['clx_prod_002'] })
+  @ApiPropertyOptional({
+    example: ['clx_prod_002'],
+    description: 'Up-sell product IDs',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   upSellProductIds?: string[];
 
-  @ApiPropertyOptional({ example: ['clx_prod_003'] })
+  @ApiPropertyOptional({
+    example: ['clx_prod_003'],
+    description: 'Cross-sell product IDs',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
